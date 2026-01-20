@@ -1,0 +1,111 @@
+"""Achievement definition schemas."""
+
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
+
+class ConditionType(str, Enum):
+    """Types of achievement conditions."""
+
+    ABSOLUTE = "absolute"  # Value compared to fixed threshold
+    PERSONAL_MAX = "personal_max"  # New personal maximum
+    PERSONAL_MIN = "personal_min"  # New personal minimum
+    POPULATION_PERCENTILE = "population_percentile"  # Compared to all players
+    PLAYER_PERCENTILE = "player_percentile"  # Compared to own history
+
+
+class Operator(str, Enum):
+    """Comparison operators for absolute conditions."""
+
+    GT = ">"
+    GTE = ">="
+    LT = "<"
+    LTE = "<="
+    EQ = "=="
+    NE = "!="
+
+
+class AchievementDefinition(BaseModel):
+    """Definition of an achievement."""
+
+    id: str = Field(..., description="Unique identifier for the achievement")
+    name: str = Field(..., description="Display name of the achievement")
+    description: str = Field(..., description="Description of what triggers the achievement")
+    stat_field: str = Field(
+        ...,
+        description="Field name from MatchParticipant to evaluate (e.g., 'kills', 'deaths')",
+    )
+    condition_type: ConditionType = Field(..., description="Type of condition to evaluate")
+
+    # For ABSOLUTE conditions
+    operator: Optional[Operator] = Field(
+        None,
+        description="Comparison operator for absolute conditions",
+    )
+    threshold: Optional[float] = Field(
+        None,
+        description="Threshold value for absolute conditions",
+    )
+
+    # For PERSONAL_MIN conditions
+    min_value: Optional[float] = Field(
+        None,
+        description="Minimum value to consider (e.g., exclude 0 deaths)",
+    )
+
+    # For PERCENTILE conditions
+    percentile: Optional[float] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Percentile threshold (e.g., 95 for top 5%)",
+    )
+    direction: Optional[str] = Field(
+        None,
+        pattern="^(high|low)$",
+        description="Whether high or low values achieve the percentile",
+    )
+
+    # Discord message
+    message_template: str = Field(
+        ...,
+        description="Template for Discord message. Supports {player_name}, {achievement_name}, "
+        "{value}, {previous_value}, etc.",
+    )
+
+
+class AchievementResult(BaseModel):
+    """Result of evaluating an achievement."""
+
+    achievement: AchievementDefinition
+    triggered: bool
+    player_name: str
+    current_value: float
+    previous_value: Optional[float] = None
+    message: Optional[str] = None
+
+    def format_message(self) -> str:
+        """Format the achievement message with values."""
+        if self.message:
+            return self.message
+
+        try:
+            return self.achievement.message_template.format(
+                player_name=self.player_name,
+                achievement_name=self.achievement.name,
+                value=self.current_value,
+                previous_value=self.previous_value or 0,
+            )
+        except (KeyError, ValueError):
+            return (
+                f"{self.player_name} achieved {self.achievement.name}! "
+                f"Value: {self.current_value}"
+            )
+
+
+class AchievementsConfig(BaseModel):
+    """Root configuration for achievements YAML file."""
+
+    achievements: list[AchievementDefinition]

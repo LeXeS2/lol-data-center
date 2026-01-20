@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lol-data-center
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - RIOT_API_KEY=${RIOT_API_KEY}
+      - DATABASE_URL=postgresql+asyncpg://lol_user:lol_password@db:5432/lol_data_center
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - POLLING_INTERVAL_SECONDS=${POLLING_INTERVAL_SECONDS:-300}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DEFAULT_REGION=${DEFAULT_REGION:-europe}
+    volumes:
+      - ./data/invalid_responses:/app/data/invalid_responses
+      - ./achievements.yaml:/app/achievements.yaml:ro
+    networks:
+      - lol-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: lol-data-center-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=lol_user
+      - POSTGRES_PASSWORD=lol_password
+      - POSTGRES_DB=lol_data_center
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lol_user -d lol_data_center"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lol-network
+
+  adminer:
+    image: adminer:latest
+    container_name: lol-data-center-adminer
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:8080"
+    networks:
+      - lol-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+
+networks:
+  lol-network:
+    driver: bridge

@@ -1,0 +1,141 @@
+# Achievement Definitions
+# Each achievement specifies a condition that, when met, triggers a Discord notification.
+#
+# Condition Types:
+#   - absolute: Value must be >, <, >=, <=, or == threshold
+#   - personal_max: Value is a new personal maximum for the player
+#   - personal_min: Value is a new personal minimum for the player
+#   - population_percentile: Value is in the top/bottom X% of all players
+#   - player_percentile: Value is in the top/bottom X% of the player's own games
+
+achievements:
+  # Absolute threshold achievements
+  - id: high_kills
+    name: "Killing Spree"
+    description: "Get 10 or more kills in a single game"
+    stat_field: kills
+    condition_type: absolute
+    operator: ">="
+    threshold: 10
+    message_template: "🎯 **{player_name}** achieved **{achievement_name}**! They got {value} kills in their last game!"
+
+  - id: perfect_game
+    name: "Perfect Game"
+    description: "Finish a game with 0 deaths"
+    stat_field: deaths
+    condition_type: absolute
+    operator: "=="
+    threshold: 0
+    message_template: "😇 **{player_name}** had a **{achievement_name}**! Zero deaths in their last game!"
+
+  - id: assist_king
+    name: "Assist King"
+    description: "Get 20 or more assists in a single game"
+    stat_field: assists
+    condition_type: absolute
+    operator: ">="
+    threshold: 20
+    message_template: "🤝 **{player_name}** is the **{achievement_name}**! They got {value} assists!"
+
+  - id: cs_master
+    name: "CS Master"
+    description: "Get 300 or more CS in a single game"
+    stat_field: total_minions_killed
+    condition_type: absolute
+    operator: ">="
+    threshold: 300
+    message_template: "🌾 **{player_name}** is a **{achievement_name}**! They farmed {value} minions!"
+
+  - id: high_damage
+    name: "Damage Dealer"
+    description: "Deal 50000 or more damage to champions"
+    stat_field: total_damage_dealt_to_champions
+    condition_type: absolute
+    operator: ">="
+    threshold: 50000
+    message_template: "💥 **{player_name}** is a **{achievement_name}**! They dealt {value:,} damage to champions!"
+
+  - id: vision_master
+    name: "Vision Master"
+    description: "Place 30 or more wards in a single game"
+    stat_field: wards_placed
+    condition_type: absolute
+    operator: ">="
+    threshold: 30
+    message_template: "👁️ **{player_name}** is a **{achievement_name}**! They placed {value} wards!"
+
+  # Personal record achievements
+  - id: new_kill_record
+    name: "New Kill Record"
+    description: "Set a new personal kill record"
+    stat_field: kills
+    condition_type: personal_max
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value} kills! (Previous: {previous_value})"
+
+  - id: new_assist_record
+    name: "New Assist Record"
+    description: "Set a new personal assist record"
+    stat_field: assists
+    condition_type: personal_max
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value} assists! (Previous: {previous_value})"
+
+  - id: new_cs_record
+    name: "New CS Record"
+    description: "Set a new personal CS record"
+    stat_field: total_minions_killed
+    condition_type: personal_max
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value} CS! (Previous: {previous_value})"
+
+  - id: new_damage_record
+    name: "New Damage Record"
+    description: "Set a new personal damage record"
+    stat_field: total_damage_dealt_to_champions
+    condition_type: personal_max
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:,} damage! (Previous: {previous_value:,})"
+
+  # Negative records (personal_min - lower is "better" for these stats)
+  - id: fewest_deaths
+    name: "Survival Expert"
+    description: "New personal minimum deaths (excluding 0)"
+    stat_field: deaths
+    condition_type: personal_min
+    min_value: 1  # Exclude perfect games (0 deaths)
+    message_template: "🛡️ **{player_name}** achieved **{achievement_name}**! Only {value} deaths! (Previous best: {previous_value})"
+
+  # Population percentile achievements
+  - id: top_killer
+    name: "Top Killer"
+    description: "Kills in the top 5% of all players"
+    stat_field: kills
+    condition_type: population_percentile
+    percentile: 95  # Top 5% = 95th percentile
+    direction: high  # Higher is better
+    message_template: "🌟 **{player_name}** achieved **{achievement_name}**! {value} kills puts them in the top 5% of all players!"
+
+  - id: elite_damage
+    name: "Elite Damage"
+    description: "Damage dealt in the top 10% of all players"
+    stat_field: total_damage_dealt_to_champions
+    condition_type: population_percentile
+    percentile: 90  # Top 10% = 90th percentile
+    direction: high
+    message_template: "🌟 **{player_name}** dealt **Elite Damage**! {value:,} damage puts them in the top 10% of all players!"
+
+  # Player percentile achievements (compared to own history)
+  - id: personal_best_game
+    name: "Personal Best Game"
+    description: "KDA in the top 10% of your own games"
+    stat_field: kda
+    condition_type: player_percentile
+    percentile: 90  # Top 10% of own games
+    direction: high
+    message_template: "⭐ **{player_name}** had a **{achievement_name}**! KDA of {value:.2f} is in the top 10% of their games!"
+
+  - id: personal_worst_deaths
+    name: "Rough Game"
+    description: "Deaths in the bottom 10% of your games (most deaths)"
+    stat_field: deaths
+    condition_type: player_percentile
+    percentile: 90  # 90th percentile of deaths = worst 10%
+    direction: high  # High deaths is "achieving" this
+    message_template: "💀 **{player_name}** had a **{achievement_name}**... {value} deaths is in their worst 10% of games."
