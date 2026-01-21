@@ -12,6 +12,7 @@ A League of Legends match data collection and achievement evaluation system.
   - Population percentiles (top X% of all players)
   - Player percentiles (top X% of own games)
 - **Discord Notifications**: Sends achievement notifications to Discord
+- **Discord Bot Commands**: Interactive slash commands for managing players directly from Discord
 - **Rate Limiting**: Respects Riot API rate limits (100 requests / 2 minutes)
 - **Async Architecture**: Non-blocking API interactions
 
@@ -100,9 +101,34 @@ lol-data-center migrate
 | `RIOT_API_KEY` | Riot Games API Key | (required) |
 | `DATABASE_URL` | PostgreSQL connection string | (required) |
 | `DISCORD_WEBHOOK_URL` | Discord webhook for notifications | (required) |
+| `DISCORD_BOT_TOKEN` | Discord bot token for slash commands | (optional) |
 | `POLLING_INTERVAL_SECONDS` | Interval between polling cycles | 300 |
 | `LOG_LEVEL` | Logging level | INFO |
 | `DEFAULT_REGION` | Default region for API calls | europe |
+
+### Discord Bot Setup (Optional)
+
+The Discord bot enables interactive slash commands for managing players directly from Discord. To set it up:
+
+1. **Create a Discord Bot**:
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Create a new application
+   - Go to the "Bot" section and create a bot
+   - Copy the bot token and add it to your `.env` file as `DISCORD_BOT_TOKEN`
+
+2. **Set Bot Permissions**:
+   - In the "OAuth2" > "URL Generator" section:
+     - Select scope: `bot`, `applications.commands`
+     - Select bot permissions: `Send Messages`, `Use Slash Commands`
+   - Use the generated URL to invite the bot to your server
+
+3. **Available Slash Commands**:
+   - `/add-player` - Add a player to track
+   - `/remove-player` - Remove a player from tracking
+   - `/list-players` - List all tracked players
+   - `/poll-now` - Manually trigger polling
+
+Note: The Discord bot is optional. The application will run without it if `DISCORD_BOT_TOKEN` is not configured.
 
 ## Achievement Configuration
 
