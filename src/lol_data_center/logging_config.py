@@ -2,6 +2,8 @@
 
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from typing import Any
 
 import structlog
@@ -14,10 +16,27 @@ def configure_logging() -> None:
     """Configure structured logging for the application."""
     settings = get_settings()
 
-    # Configure standard library logging
+    # Create logs directory if it doesn't exist
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
+    # Configure rotating file handler (10MB per file, keep 5 backup files)
+    file_handler = RotatingFileHandler(
+        log_dir / "lol_data_center.log",
+        maxBytes=10 * 1024 * 1024,  # 10 MB
+        backupCount=5,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(getattr(logging, settings.log_level))
+    file_handler.setFormatter(logging.Formatter("%(message)s"))
+
+    # Configure standard library logging with both console and file output
     logging.basicConfig(
         format="%(message)s",
-        stream=sys.stdout,
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            file_handler,
+        ],
         level=getattr(logging, settings.log_level),
     )
 
@@ -47,9 +66,7 @@ def configure_logging() -> None:
 
     structlog.configure(
         processors=processors,
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, settings.log_level)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, settings.log_level)),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

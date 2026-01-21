@@ -1,6 +1,6 @@
 """Tests for Discord bot commands."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
 import pytest
@@ -14,12 +14,14 @@ class TestDiscordBot:
     @pytest.mark.asyncio
     async def test_bot_initialization_without_token(self):
         """Test that bot doesn't start without token."""
-        bot = DiscordBot(token="")
+        with patch("lol_data_center.notifications.discord_bot.get_settings") as mock_settings:
+            mock_settings.return_value.discord_bot_token = None
+            bot = DiscordBot(token=None)
 
-        await bot.start()
+            await bot.start()
 
-        # Bot should not be running without token
-        assert not bot.is_running
+            # Bot should not be running without token
+            assert not bot.is_running
 
     @pytest.mark.asyncio
     async def test_bot_initialization_with_token(self):

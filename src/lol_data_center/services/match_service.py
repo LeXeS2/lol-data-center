@@ -1,14 +1,18 @@
 """Match data management service."""
 
-from datetime import datetime
-
 from scipy.stats import norm  # type: ignore[import-untyped]
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from lol_data_center.database.models import Match, MatchParticipant, PlayerRecord, TrackedPlayer
 from lol_data_center.logging_config import get_logger
-from lol_data_center.schemas.riot_api import MatchDto, ParticipantDto
+from lol_data_center.schemas.riot_api import (
+    MatchDto,
+    MatchInfoDto,
+    MatchMetadataDto,
+    ParticipantDto,
+)
 
 logger = get_logger(__name__)
 
@@ -16,7 +20,7 @@ logger = get_logger(__name__)
 class MatchService:
     """Service for managing match data."""
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession) -> None:
         """Initialize the match service.
 
         Args:
@@ -240,14 +244,15 @@ class MatchService:
                 setattr(records, match_field, match_id)
 
         # Check minimum records (deaths, excluding 0)
-        if participant.deaths > 0:
-            if records.min_deaths is None or participant.deaths < records.min_deaths:
-                broken_records["min_deaths"] = (
-                    records.min_deaths or float("inf"),
-                    participant.deaths,
-                )
-                records.min_deaths = participant.deaths
-                records.min_deaths_match_id = match_id
+        if participant.deaths > 0 and (
+            records.min_deaths is None or participant.deaths < records.min_deaths
+        ):
+            broken_records["min_deaths"] = (
+                records.min_deaths or float("inf"),
+                participant.deaths,
+            )
+            records.min_deaths = participant.deaths
+            records.min_deaths_match_id = match_id
 
         # Update game counts
         records.total_games += 1
@@ -282,7 +287,7 @@ class MatchService:
         1. Queries the mean and standard deviation for the stat
         2. Calculates the z-score: (value - mean) / std_dev
         3. Converts z-score to percentile using the cumulative distribution function
-        
+
         The population can be filtered by champion and role for fairer comparisons.
 
         Args:
@@ -297,7 +302,7 @@ class MatchService:
         """
         # Build the base query for statistics
         column = getattr(MatchParticipant, stat_field)
-        
+
         # Build WHERE conditions
         conditions = []
         if puuid:
@@ -306,21 +311,21 @@ class MatchService:
             conditions.append(MatchParticipant.champion_id == champion_id)
         if role:
             conditions.append(MatchParticipant.individual_position == role)
-        
+
         # Fetch all values for manual standard deviation calculation
         # This is necessary because SQLite doesn't support stddev_samp
         # NOTE: For very large datasets (thousands of matches), consider using database-level
         # aggregation or streaming approaches to reduce memory usage
         values_query = select(column).select_from(MatchParticipant)
-        
+
         if conditions:
             values_query = values_query.where(*conditions)
-        
+
         result = await self._session.execute(values_query)
         values = [row[0] for row in result.fetchall()]
-        
+
         count = len(values)
-        
+
         # Handle edge cases
         if count == 0:
             logger.warning(
@@ -331,19 +336,19 @@ class MatchService:
                 role=role,
             )
             return 0.0
-        
+
         if count == 1:
             # Only one data point - it's at the 50th percentile
             return 50.0
-        
+
         # Calculate mean
         mean = sum(values) / count
-        
+
         # Calculate standard deviation (sample)
         # Note: count > 1 is guaranteed by the check above, so division by (count - 1) is safe
         variance = sum((x - mean) ** 2 for x in values) / (count - 1)
-        stddev = variance ** 0.5
-        
+        stddev = variance**0.5
+
         if stddev == 0:
             # No variance in data - all values are the same
             if value > mean:
@@ -352,14 +357,14 @@ class MatchService:
                 return 0.0
             else:
                 return 50.0
-        
+
         # Calculate z-score
         z_score = (value - mean) / stddev
-        
+
         # Convert z-score to percentile using cumulative distribution function
         # norm.cdf returns value between 0 and 1, we convert to 0-100
         percentile = norm.cdf(z_score) * 100
-        
+
         logger.debug(
             "Calculated percentile using z-score",
             stat_field=stat_field,
@@ -372,7 +377,7 @@ class MatchService:
             champion_id=champion_id,
             role=role,
         )
-        
+
         return float(percentile)
 
     async def get_recent_matches_for_player(
@@ -396,3 +401,148 @@ class MatchService:
             .limit(limit)
         )
         return list(result.scalars().all())
+
+    async def get_match_dto(self, match_id: str) -> MatchDto | None:
+        """Retrieve a match from the database and convert it to MatchDto format.
+
+        This allows reusing already-fetched matches instead of querying the Riot API again.
+
+        Args:
+            match_id: The match ID to retrieve
+
+        Returns:
+            MatchDto if match exists, None otherwise
+        """
+        # Load match with all participants
+        result = await self._session.execute(
+            select(Match)
+            .options(selectinload(Match.participants))
+            .where(Match.match_id == match_id)
+        )
+        match = result.scalar_one_or_none()
+
+        if match is None:
+            return None
+
+        # Convert database models to DTOs
+        participants_dto: list[ParticipantDto] = []
+        puuids: list[str] = []
+
+        for participant in match.participants:
+            puuids.append(participant.puuid)
+
+            # Reconstruct ParticipantDto from database model
+            participant_dto = ParticipantDto(
+                puuid=participant.puuid,
+                summoner_name=participant.summoner_name,
+                summoner_id=participant.summoner_id,
+                riot_id_game_name=participant.riot_id_game_name,
+                riot_id_tagline=participant.riot_id_tagline,
+                profile_icon=participant.profile_icon,
+                summoner_level=participant.summoner_level,
+                champion_id=participant.champion_id,
+                champion_name=participant.champion_name,
+                champ_level=participant.champion_level,
+                team_id=participant.team_id,
+                team_position=participant.team_position,
+                individual_position=participant.individual_position,
+                lane=participant.lane,
+                role=participant.role,
+                kills=participant.kills,
+                deaths=participant.deaths,
+                assists=participant.assists,
+                total_damage_dealt=participant.total_damage_dealt,
+                total_damage_dealt_to_champions=participant.total_damage_dealt_to_champions,
+                total_damage_taken=participant.total_damage_taken,
+                damage_self_mitigated=participant.damage_self_mitigated,
+                largest_killing_spree=participant.largest_killing_spree,
+                largest_multi_kill=participant.largest_multi_kill,
+                killing_sprees=participant.killing_sprees,
+                double_kills=participant.double_kills,
+                triple_kills=participant.triple_kills,
+                quadra_kills=participant.quadra_kills,
+                penta_kills=participant.penta_kills,
+                gold_earned=participant.gold_earned,
+                gold_spent=participant.gold_spent,
+                total_minions_killed=participant.total_minions_killed,
+                neutral_minions_killed=participant.neutral_minions_killed,
+                vision_score=participant.vision_score,
+                wards_placed=participant.wards_placed,
+                wards_killed=participant.wards_killed,
+                vision_wards_bought_in_game=participant.vision_wards_bought_in_game,
+                turret_kills=participant.turret_kills,
+                turret_takedowns=participant.turret_takedowns,
+                inhibitor_kills=participant.inhibitor_kills,
+                inhibitor_takedowns=participant.inhibitor_takedowns,
+                baron_kills=participant.baron_kills,
+                dragon_kills=participant.dragon_kills,
+                objectives_stolen=participant.objective_stolen,
+                total_heal=participant.total_heal,
+                total_heals_on_teammates=participant.total_heals_on_teammates,
+                total_damage_shielded_on_teammates=participant.total_damage_shielded_on_teammates,
+                total_time_cc_dealt=participant.total_time_cc_dealt,
+                time_ccing_others=participant.time_ccing_others,
+                win=participant.win,
+                first_blood_kill=participant.first_blood_kill,
+                first_blood_assist=participant.first_blood_assist,
+                first_tower_kill=participant.first_tower_kill,
+                first_tower_assist=participant.first_tower_assist,
+                game_ended_in_surrender=participant.game_ended_in_surrender,
+                game_ended_in_early_surrender=participant.game_ended_in_early_surrender,
+                time_played=participant.time_played,
+                item0=participant.item0,
+                item1=participant.item1,
+                item2=participant.item2,
+                item3=participant.item3,
+                item4=participant.item4,
+                item5=participant.item5,
+                item6=participant.item6,
+                summoner1_id=participant.summoner1_id,
+                summoner2_id=participant.summoner2_id,
+            )
+            participants_dto.append(participant_dto)
+
+        # Create metadata
+        metadata = MatchMetadataDto(
+            data_version=match.data_version,
+            match_id=match.match_id,
+            participants=puuids,
+        )
+
+        # Create info (note: teams data is not stored in DB, so we use empty list)
+        info = MatchInfoDto(
+            game_creation=int(match.game_creation.timestamp() * 1000),
+            game_duration=match.game_duration,
+            game_end_timestamp=(
+                int(match.game_end_timestamp.timestamp() * 1000)
+                if match.game_end_timestamp
+                else None
+            ),
+            game_id=0,  # Not stored in DB
+            game_mode=match.game_mode,
+            game_name=match.game_name or "",
+            game_type=match.game_type,
+            game_version=match.game_version,
+            map_id=match.map_id,
+            participants=participants_dto,
+            platform_id=match.platform_id,
+            queue_id=match.queue_id,
+            teams=[],  # Team data not stored in DB
+            tournament_code=match.tournament_code,
+        )
+
+        return MatchDto(metadata=metadata, info=info)
+
+    @staticmethod
+    def has_bot_participant(match_data: MatchDto) -> bool:
+        """Check if a match contains any BOT participants.
+
+        Matches with BOT participants (AI games) should be filtered out.
+
+        Args:
+            match_data: Match data to check
+
+        Returns:
+            True if any participant has PUUID "BOT"
+        """
+        return any(p.puuid == "BOT" for p in match_data.info.participants)

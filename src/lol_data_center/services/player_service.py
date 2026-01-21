@@ -202,7 +202,7 @@ class PlayerService:
             player: The player to update
             last_match_id: Optional last match ID to update
         """
-        player.last_polled_at = datetime.utcnow()
+        player.last_polled_at = datetime.now()
         if last_match_id:
             player.last_match_id = last_match_id
         await self._session.commit()

@@ -22,12 +22,24 @@ def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
         settings = get_settings()
+        # Use NullPool for SQLite (in-memory or file-based) to avoid connection issues
+        # PostgreSQL uses connection pooling with appropriate settings
+        pool_config: dict[str, int | bool] = {}
+        if "sqlite" in settings.database_url:
+            from sqlalchemy.pool import NullPool
+            pool_config = {"poolclass": NullPool}
+        else:
+            pool_config = {
+                "pool_size": 5,
+                "max_overflow": 10,
+                "pool_pre_ping": True,
+                "pool_recycle": 3600,  # Recycle connections after 1 hour
+            }
+        
         _engine = create_async_engine(
             settings.database_url,
             echo=settings.log_level == "DEBUG",
-            pool_pre_ping=True,
-            pool_size=5,
-            max_overflow=10,
+            **pool_config,
         )
     return _engine
 
@@ -57,6 +69,9 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+        finally:
+            # Explicitly close the session and return connection to pool
+            await session.close()
 
 
 async def init_db() -> None:
