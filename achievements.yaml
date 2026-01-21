@@ -139,3 +139,44 @@ achievements:
     percentile: 90  # 90th percentile of deaths = worst 10%
     direction: high  # High deaths is "achieving" this
     message_template: "💀 **{player_name}** had a **{achievement_name}**... {value} deaths is in their worst 10% of games."
+
+  # Consecutive achievements (win streaks, etc.)
+  - id: triple_win_streak
+    name: "Triple Win Streak"
+    description: "Win 3 games in a row"
+    stat_field: win
+    condition_type: consecutive
+    operator: "=="
+    threshold: 1  # win is a boolean, 1 = True
+    consecutive_count: 3
+    message_template: "🔥 **{player_name}** achieved **{achievement_name}**! 3 wins in a row!"
+
+  - id: five_win_streak
+    name: "Pentakill Streak"
+    description: "Win 5 games in a row"
+    stat_field: win
+    condition_type: consecutive
+    operator: "=="
+    threshold: 1
+    consecutive_count: 5
+    message_template: "🔥🔥 **{player_name}** achieved **{achievement_name}**! 5 wins in a row! Unstoppable!"
+
+  - id: seven_win_streak
+    name: "Legendary Streak"
+    description: "Win 7 games in a row"
+    stat_field: win
+    condition_type: consecutive
+    operator: "=="
+    threshold: 1
+    consecutive_count: 7
+    message_template: "🔥🔥🔥 **{player_name}** achieved **{achievement_name}**! 7 wins in a row! LEGENDARY!"
+
+  - id: perfect_kda_streak
+    name: "Perfect KDA Streak"
+    description: "Get KDA >= 5 for 3 games in a row"
+    stat_field: kda
+    condition_type: consecutive
+    operator: ">="
+    threshold: 5.0
+    consecutive_count: 3
+    message_template: "⭐ **{player_name}** achieved **{achievement_name}**! KDA >= 5.0 for 3 games straight!"

@@ -5,7 +5,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lol_data_center.database.models import PlayerRecord, TrackedPlayer
+from lol_data_center.database.models import MatchParticipant, PlayerRecord, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.schemas.achievements import (
     AchievementDefinition,
@@ -329,6 +329,114 @@ class PlayerPercentileCondition(BaseCondition):
         )
 
 
+class ConsecutiveCondition(BaseCondition):
+    """Condition that checks if a condition is met across N consecutive games."""
+
+    async def evaluate(
+        self,
+        player: TrackedPlayer,
+        participant: ParticipantDto,
+        session: AsyncSession,
+    ) -> AchievementResult:
+        """Evaluate if the condition is met across N consecutive games."""
+        value = self._get_stat_value(participant)
+        consecutive_count = self.definition.consecutive_count
+        threshold = self.definition.threshold
+        operator = self.definition.operator
+
+        if consecutive_count is None or consecutive_count < 2:
+            raise ValueError(
+                f"Consecutive condition requires consecutive_count >= 2: {self.definition.id}"
+            )
+
+        if threshold is None or operator is None:
+            raise ValueError(
+                f"Consecutive condition requires threshold and operator: {self.definition.id}"
+            )
+
+        # Check if current game meets the condition
+        if not self._compare(value, operator, threshold):
+            return AchievementResult(
+                achievement=self.definition,
+                triggered=False,
+                player_name=player.riot_id,
+                current_value=value,
+            )
+
+        # Query the last N-1 games for this player
+        match_service = MatchService(session)
+        recent_matches = await match_service.get_recent_matches_for_player(
+            puuid=player.puuid,
+            limit=consecutive_count - 1,
+        )
+
+        # Need exactly N-1 previous games
+        if len(recent_matches) < consecutive_count - 1:
+            return AchievementResult(
+                achievement=self.definition,
+                triggered=False,
+                player_name=player.riot_id,
+                current_value=value,
+            )
+
+        # Check if all previous N-1 games also meet the condition
+        for match_participant in recent_matches:
+            prev_value = self._get_stat_value_from_participant(match_participant)
+            if not self._compare(prev_value, operator, threshold):
+                return AchievementResult(
+                    achievement=self.definition,
+                    triggered=False,
+                    player_name=player.riot_id,
+                    current_value=value,
+                )
+
+        # All N games meet the condition
+        return AchievementResult(
+            achievement=self.definition,
+            triggered=True,
+            player_name=player.riot_id,
+            current_value=value,
+        )
+
+    def _get_stat_value_from_participant(self, participant: MatchParticipant) -> float:
+        """Get the stat value from a MatchParticipant database model.
+
+        Args:
+            participant: The MatchParticipant model instance
+
+        Returns:
+            The stat value
+        """
+        stat_field = self.definition.stat_field
+
+        # Handle special computed fields
+        if stat_field == "kda":
+            return participant.kda
+
+        # Get attribute from participant
+        if hasattr(participant, stat_field):
+            value = getattr(participant, stat_field)
+            return float(value)
+
+        raise ValueError(f"Unknown stat field: {stat_field}")
+
+    def _compare(self, value: float, operator: Operator, threshold: float) -> bool:
+        """Compare value against threshold using operator."""
+        match operator:
+            case Operator.GT:
+                return value > threshold
+            case Operator.GTE:
+                return value >= threshold
+            case Operator.LT:
+                return value < threshold
+            case Operator.LTE:
+                return value <= threshold
+            case Operator.EQ:
+                return value == threshold
+            case Operator.NE:
+                return value != threshold
+
+
 def create_condition(definition: AchievementDefinition) -> BaseCondition:
     """Factory function to create the appropriate condition.
 
@@ -349,5 +457,7 @@ def create_condition(definition: AchievementDefinition) -> BaseCondition:
             return PopulationPercentileCondition(definition)
         case ConditionType.PLAYER_PERCENTILE:
             return PlayerPercentileCondition(definition)
+        case ConditionType.CONSECUTIVE:
+            return ConsecutiveCondition(definition)
         case _:
             raise ValueError(f"Unknown condition type: {definition.condition_type}")

@@ -112,7 +112,12 @@ class AchievementEvaluator:
                     )
 
         # Send notifications for triggered achievements
-        for achievement_result in triggered_achievements:
+        # Deduplicate consecutive achievements - only send the most prestigious one
+        achievements_to_notify = self._deduplicate_consecutive_achievements(
+            triggered_achievements
+        )
+
+        for achievement_result in achievements_to_notify:
             try:
                 await self._send_notification(achievement_result, event)
             except Exception as e:
@@ -152,6 +157,76 @@ class AchievementEvaluator:
         """
         condition = create_condition(achievement)
         return await condition.evaluate(player, event.participant_data, session)
+
+    def _deduplicate_consecutive_achievements(
+        self,
+        triggered_achievements: list[AchievementResult],
+    ) -> list[AchievementResult]:
+        """Deduplicate consecutive achievements by keeping only the most prestigious.
+
+        When multiple consecutive achievements trigger for the same stat_field and operator
+        (e.g., "win 5 games in a row" and "win 7 games in a row"), only the achievement
+        with the highest consecutive_count is returned.
+
+        Args:
+            triggered_achievements: List of all triggered achievements
+
+        Returns:
+            Filtered list with only the most prestigious consecutive achievements
+        """
+        from lol_data_center.schemas.achievements import ConditionType
+
+        # Separate consecutive achievements from others
+        consecutive_achievements: list[AchievementResult] = []
+        other_achievements: list[AchievementResult] = []
+
+        for result in triggered_achievements:
+            if result.achievement.condition_type == ConditionType.CONSECUTIVE:
+                consecutive_achievements.append(result)
+            else:
+                other_achievements.append(result)
+
+        # If no consecutive achievements, return all
+        if not consecutive_achievements:
+            return triggered_achievements
+
+        # Group consecutive achievements by (stat_field, operator, threshold)
+        # This identifies achievements that are "the same" but with different counts
+        from collections import defaultdict
+
+        groups: dict[tuple[str, str, float], list[AchievementResult]] = defaultdict(list)
+
+        for result in consecutive_achievements:
+            key = (
+                result.achievement.stat_field,
+                str(result.achievement.operator),
+                result.achievement.threshold or 0.0,
+            )
+            groups[key].append(result)
+
+        # For each group, keep only the achievement with highest consecutive_count
+        best_consecutive: list[AchievementResult] = []
+        for group in groups.values():
+            if len(group) == 1:
+                best_consecutive.append(group[0])
+            else:
+                # Sort by consecutive_count descending and take the first
+                sorted_group = sorted(
+                    group,
+                    key=lambda x: x.achievement.consecutive_count or 0,
+                    reverse=True,
+                )
+                best_consecutive.append(sorted_group[0])
+
+                # Log that we're deduplicating
+                logger.info(
+                    "Deduplicating consecutive achievements",
+                    kept=sorted_group[0].achievement.id,
+                    suppressed=[a.achievement.id for a in sorted_group[1:]],
+                )
+
+        # Return non-consecutive + best consecutive
+        return other_achievements + best_consecutive
 
     async def _send_notification(
         self,
