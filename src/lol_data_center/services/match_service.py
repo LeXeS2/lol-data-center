@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from scipy.stats import norm
+from scipy.stats import norm  # type: ignore[import-untyped]
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -370,7 +370,7 @@ class MatchService:
             role=role,
         )
         
-        return percentile
+        return float(percentile)
 
     async def get_recent_matches_for_player(
         self,
