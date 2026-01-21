@@ -307,22 +307,17 @@ class MatchService:
         if role:
             conditions.append(MatchParticipant.individual_position == role)
         
-        # Query mean and standard deviation
-        stats_query = select(
-            func.avg(column).label("mean"),
-            func.stddev_samp(column).label("stddev"),
-            func.count().label("count"),
-        ).select_from(MatchParticipant)
+        # Fetch all values for manual standard deviation calculation
+        # This is necessary because SQLite doesn't support stddev_samp
+        values_query = select(column).select_from(MatchParticipant)
         
         if conditions:
-            stats_query = stats_query.where(*conditions)
+            values_query = values_query.where(*conditions)
         
-        result = await self._session.execute(stats_query)
-        stats = result.one()
+        result = await self._session.execute(values_query)
+        values = [row[0] for row in result.fetchall()]
         
-        mean = stats.mean
-        stddev = stats.stddev
-        count = stats.count
+        count = len(values)
         
         # Handle edge cases
         if count == 0:
@@ -339,15 +334,14 @@ class MatchService:
             # Only one data point - it's at the 50th percentile
             return 50.0
         
-        if mean is None:
-            logger.warning(
-                "Mean is None for percentile calculation",
-                stat_field=stat_field,
-                count=count,
-            )
-            return 0.0
+        # Calculate mean
+        mean = sum(values) / count
         
-        if stddev is None or stddev == 0:
+        # Calculate standard deviation (sample)
+        variance = sum((x - mean) ** 2 for x in values) / (count - 1)
+        stddev = variance ** 0.5
+        
+        if stddev == 0:
             # No variance in data - all values are the same
             if value > mean:
                 return 100.0
