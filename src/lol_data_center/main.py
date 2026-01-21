@@ -7,6 +7,7 @@ from typing import Any
 from lol_data_center.achievements.evaluator import AchievementEvaluator
 from lol_data_center.database.engine import close_db, init_db
 from lol_data_center.logging_config import configure_logging, get_logger
+from lol_data_center.notifications.discord_bot import DiscordBot
 from lol_data_center.services.polling_service import PollingService
 
 logger = get_logger(__name__)
@@ -24,6 +25,7 @@ async def main() -> None:
     # Initialize services
     polling_service = PollingService()
     achievement_evaluator = AchievementEvaluator()
+    discord_bot = DiscordBot()
 
     # Subscribe achievement evaluator to events
     achievement_evaluator.subscribe()
@@ -45,6 +47,9 @@ async def main() -> None:
         pass
 
     try:
+        # Start Discord bot (if configured)
+        await discord_bot.start()
+
         # Start polling service
         await polling_service.start()
 
@@ -61,6 +66,7 @@ async def main() -> None:
 
         await polling_service.stop()
         await achievement_evaluator.close()
+        await discord_bot.stop()
         await close_db()
 
         logger.info("LoL Data Center stopped")

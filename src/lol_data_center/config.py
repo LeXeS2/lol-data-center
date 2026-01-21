@@ -34,6 +34,10 @@ class Settings(BaseSettings):
         default="https://discord.com/api/webhooks/not-configured",
         description="Discord webhook URL for notifications",
     )
+    discord_bot_token: str = Field(
+        default="",
+        description="Discord bot token for slash commands (optional)",
+    )
 
     # Polling
     polling_interval_seconds: int = Field(

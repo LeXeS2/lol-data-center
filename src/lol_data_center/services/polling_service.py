@@ -270,3 +270,11 @@ class PollingService:
                 event_bus.unsubscribe(NewMatchEvent, count_events)
 
             return event_count
+
+    async def poll_all_players_once(self) -> None:
+        """Poll all active players once (useful for manual triggers).
+
+        This is a public method that can be used to trigger polling
+        without starting the background service.
+        """
+        await self._poll_all_players()
