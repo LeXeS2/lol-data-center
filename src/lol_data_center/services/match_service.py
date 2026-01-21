@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from scipy.stats import norm
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -272,48 +273,110 @@ class MatchService:
         stat_field: str,
         value: float,
         puuid: str | None = None,
+        champion_id: int | None = None,
+        role: str | None = None,
     ) -> float:
-        """Calculate the percentile rank of a stat value.
+        """Calculate the percentile rank of a stat value using z-score.
+
+        This method uses a more sophisticated approach than simple counting:
+        1. Queries the mean and standard deviation for the stat
+        2. Calculates the z-score: (value - mean) / std_dev
+        3. Converts z-score to percentile using the cumulative distribution function
+        
+        The population can be filtered by champion and role for fairer comparisons.
 
         Args:
             stat_field: Name of the stat field (e.g., "kills")
             value: The value to calculate percentile for
             puuid: If provided, calculate percentile within player's own games only
+            champion_id: If provided, only compare against games with this champion
+            role: If provided, only compare against games with this role
 
         Returns:
             Percentile rank (0-100)
         """
-        # Build the query for counting lower values
+        # Build the base query for statistics
         column = getattr(MatchParticipant, stat_field)
-
+        
+        # Build WHERE conditions
+        conditions = []
         if puuid:
-            # Player-specific percentile
-            count_below = await self._session.execute(
-                select(func.count())
-                .select_from(MatchParticipant)
-                .where(MatchParticipant.puuid == puuid, column < value)
+            conditions.append(MatchParticipant.puuid == puuid)
+        if champion_id is not None:
+            conditions.append(MatchParticipant.champion_id == champion_id)
+        if role:
+            conditions.append(MatchParticipant.individual_position == role)
+        
+        # Query mean and standard deviation
+        stats_query = select(
+            func.avg(column).label("mean"),
+            func.stddev_samp(column).label("stddev"),
+            func.count().label("count"),
+        ).select_from(MatchParticipant)
+        
+        if conditions:
+            stats_query = stats_query.where(*conditions)
+        
+        result = await self._session.execute(stats_query)
+        stats = result.one()
+        
+        mean = stats.mean
+        stddev = stats.stddev
+        count = stats.count
+        
+        # Handle edge cases
+        if count == 0:
+            logger.warning(
+                "No data for percentile calculation",
+                stat_field=stat_field,
+                puuid=puuid,
+                champion_id=champion_id,
+                role=role,
             )
-            total = await self._session.execute(
-                select(func.count())
-                .select_from(MatchParticipant)
-                .where(MatchParticipant.puuid == puuid)
-            )
-        else:
-            # Population percentile
-            count_below = await self._session.execute(
-                select(func.count()).select_from(MatchParticipant).where(column < value)
-            )
-            total = await self._session.execute(
-                select(func.count()).select_from(MatchParticipant)
-            )
-
-        below = count_below.scalar_one()
-        total_count = total.scalar_one()
-
-        if total_count == 0:
             return 0.0
-
-        return (below / total_count) * 100
+        
+        if count == 1:
+            # Only one data point - it's at the 50th percentile
+            return 50.0
+        
+        if mean is None:
+            logger.warning(
+                "Mean is None for percentile calculation",
+                stat_field=stat_field,
+                count=count,
+            )
+            return 0.0
+        
+        if stddev is None or stddev == 0:
+            # No variance in data - all values are the same
+            if value > mean:
+                return 100.0
+            elif value < mean:
+                return 0.0
+            else:
+                return 50.0
+        
+        # Calculate z-score
+        z_score = (value - mean) / stddev
+        
+        # Convert z-score to percentile using cumulative distribution function
+        # norm.cdf returns value between 0 and 1, we convert to 0-100
+        percentile = norm.cdf(z_score) * 100
+        
+        logger.debug(
+            "Calculated percentile using z-score",
+            stat_field=stat_field,
+            value=value,
+            mean=mean,
+            stddev=stddev,
+            z_score=z_score,
+            percentile=percentile,
+            count=count,
+            champion_id=champion_id,
+            role=role,
+        )
+        
+        return percentile
 
     async def get_recent_matches_for_player(
         self,
