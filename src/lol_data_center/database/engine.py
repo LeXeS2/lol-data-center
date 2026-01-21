@@ -35,7 +35,7 @@ def get_engine() -> AsyncEngine:
                 "pool_pre_ping": True,
                 "pool_recycle": 3600,  # Recycle connections after 1 hour
             }
-        
+
         _engine = create_async_engine(
             settings.database_url,
             echo=settings.log_level == "DEBUG",

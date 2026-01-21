@@ -1,7 +1,11 @@
 """Tests for ConsecutiveCondition."""
 
-import pytest
+from __future__ import annotations
+
 from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
+
+import pytest
 
 from lol_data_center.achievements.conditions import ConsecutiveCondition
 from lol_data_center.database.models import Match, MatchParticipant, TrackedPlayer
@@ -12,6 +16,9 @@ from lol_data_center.schemas.achievements import (
 )
 from lol_data_center.schemas.riot_api import ParticipantDto
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 
 class TestConsecutiveCondition:
     """Tests for ConsecutiveCondition."""
@@ -21,8 +28,8 @@ class TestConsecutiveCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test consecutive wins achievement when triggered (3 wins in a row)."""
         # Create 2 previous winning matches
         await self._create_previous_matches(
@@ -57,8 +64,8 @@ class TestConsecutiveCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test consecutive wins not triggered when current game is a loss."""
         # Create 2 previous winning matches
         await self._create_previous_matches(
@@ -93,8 +100,8 @@ class TestConsecutiveCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test consecutive wins not triggered when one previous game was a loss."""
         # Create 1 win, 1 loss
         await self._create_previous_matches(
@@ -135,8 +142,8 @@ class TestConsecutiveCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test consecutive achievement not triggered when not enough previous games."""
         # Create only 1 previous match (need 2 for streak of 3)
         await self._create_previous_matches(
@@ -171,8 +178,8 @@ class TestConsecutiveCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test consecutive high KDA achievement."""
         # Create 2 previous matches with KDA >= 5.0
         await self._create_previous_matches_with_kda(
@@ -210,8 +217,8 @@ class TestConsecutiveCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test that validation errors are raised for invalid configurations."""
         # Missing consecutive_count
         definition = AchievementDefinition(
@@ -249,7 +256,7 @@ class TestConsecutiveCondition:
 
     async def _create_previous_matches(
         self,
-        session,
+        session: AsyncSession,
         player: TrackedPlayer,
         count: int,
         win: bool,
@@ -361,7 +368,7 @@ class TestConsecutiveCondition:
 
     async def _create_previous_matches_with_kda(
         self,
-        session,
+        session: AsyncSession,
         player: TrackedPlayer,
         count: int,
         kda: float,

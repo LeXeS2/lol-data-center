@@ -34,13 +34,13 @@ class TrackedPlayer(Base):
     game_name: Mapped[str] = mapped_column(String(100), nullable=False)
     tag_line: Mapped[str] = mapped_column(String(10), nullable=False)
     region: Mapped[str] = mapped_column(String(20), nullable=False)
-    summoner_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    account_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    profile_icon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    summoner_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    summoner_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    account_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    profile_icon_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    summoner_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     polling_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_polled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    last_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
@@ -75,15 +75,15 @@ class Match(Base):
     data_version: Mapped[str] = mapped_column(String(10), nullable=False)
     game_creation: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     game_duration: Mapped[int] = mapped_column(Integer, nullable=False)  # seconds
-    game_end_timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    game_end_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     game_mode: Mapped[str] = mapped_column(String(50), nullable=False)
-    game_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    game_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     game_type: Mapped[str] = mapped_column(String(50), nullable=False)
     game_version: Mapped[str] = mapped_column(String(50), nullable=False)
     map_id: Mapped[int] = mapped_column(Integer, nullable=False)
     platform_id: Mapped[str] = mapped_column(String(10), nullable=False)
     queue_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    tournament_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    tournament_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )
@@ -112,16 +112,16 @@ class MatchParticipant(Base):
     )
     match_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     puuid: Mapped[str] = mapped_column(String(78), nullable=False, index=True)
-    player_id: Mapped[Optional[int]] = mapped_column(
+    player_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tracked_players.id", ondelete="SET NULL"), nullable=True
     )
     game_creation: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     # Player info
     summoner_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    summoner_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    riot_id_game_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    riot_id_tagline: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    summoner_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    riot_id_game_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    riot_id_tagline: Mapped[str | None] = mapped_column(String(10), nullable=True)
     profile_icon: Mapped[int] = mapped_column(Integer, nullable=False)
     summoner_level: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -234,25 +234,25 @@ class PlayerRecord(Base):
 
     # Maximum records
     max_kills: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_kills_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_kills_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_deaths: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_deaths_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_deaths_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_assists: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_assists_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_assists_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_kda: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    max_kda_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_kda_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_cs: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_cs_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_cs_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_damage_to_champions: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    max_damage_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_damage_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_vision_score: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_vision_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_vision_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     max_gold: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    max_gold_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    max_gold_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Minimum records (for stats where lower is better, excluding 0 deaths)
-    min_deaths: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    min_deaths_match_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    min_deaths: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    min_deaths_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Game counts
     total_games: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -278,7 +278,7 @@ class InvalidApiResponse(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     endpoint: Mapped[str] = mapped_column(String(200), nullable=False)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
-    status_code: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     response_body: Mapped[str] = mapped_column(Text, nullable=False)
     error_message: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

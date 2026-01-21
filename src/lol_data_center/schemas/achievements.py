@@ -1,7 +1,6 @@
 """Achievement definition schemas."""
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -41,36 +40,36 @@ class AchievementDefinition(BaseModel):
     condition_type: ConditionType = Field(..., description="Type of condition to evaluate")
 
     # For ABSOLUTE conditions
-    operator: Optional[Operator] = Field(
+    operator: Operator | None = Field(
         None,
         description="Comparison operator for absolute conditions",
     )
-    threshold: Optional[float] = Field(
+    threshold: float | None = Field(
         None,
         description="Threshold value for absolute conditions",
     )
 
     # For PERSONAL_MIN conditions
-    min_value: Optional[float] = Field(
+    min_value: float | None = Field(
         None,
         description="Minimum value to consider (e.g., exclude 0 deaths)",
     )
 
     # For PERCENTILE conditions
-    percentile: Optional[float] = Field(
+    percentile: float | None = Field(
         None,
         ge=0,
         le=100,
         description="Percentile threshold (e.g., 95 for top 5%)",
     )
-    direction: Optional[str] = Field(
+    direction: str | None = Field(
         None,
         pattern="^(high|low)$",
         description="Whether high or low values achieve the percentile",
     )
 
     # For CONSECUTIVE conditions
-    consecutive_count: Optional[int] = Field(
+    consecutive_count: int | None = Field(
         None,
         ge=2,
         description="Number of consecutive games that must meet the condition",
@@ -91,8 +90,8 @@ class AchievementResult(BaseModel):
     triggered: bool
     player_name: str
     current_value: float
-    previous_value: Optional[float] = None
-    message: Optional[str] = None
+    previous_value: float | None = None
+    message: str | None = None
 
     def format_message(self) -> str:
         """Format the achievement message with values."""

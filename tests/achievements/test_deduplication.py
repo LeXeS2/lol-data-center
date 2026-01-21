@@ -1,10 +1,8 @@
 """Tests for achievement deduplication in evaluator."""
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from __future__ import annotations
 
 from lol_data_center.achievements.evaluator import AchievementEvaluator
-from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.schemas.achievements import (
     AchievementDefinition,
     AchievementResult,
@@ -16,7 +14,7 @@ from lol_data_center.schemas.achievements import (
 class TestAchievementDeduplication:
     """Tests for consecutive achievement deduplication."""
 
-    def test_deduplicate_no_consecutive(self):
+    def test_deduplicate_no_consecutive(self) -> None:
         """Test that non-consecutive achievements are not affected."""
         evaluator = AchievementEvaluator(achievements=[])
 
@@ -56,7 +54,7 @@ class TestAchievementDeduplication:
         # All results should be returned
         assert len(deduplicated) == 2
 
-    def test_deduplicate_single_consecutive(self):
+    def test_deduplicate_single_consecutive(self) -> None:
         """Test that a single consecutive achievement is returned unchanged."""
         evaluator = AchievementEvaluator(achievements=[])
 
@@ -84,7 +82,7 @@ class TestAchievementDeduplication:
         assert len(deduplicated) == 1
         assert deduplicated[0].achievement.id == "triple_win"
 
-    def test_deduplicate_multiple_different_consecutive(self):
+    def test_deduplicate_multiple_different_consecutive(self) -> None:
         """Test that different consecutive achievements are kept."""
         evaluator = AchievementEvaluator(achievements=[])
 
@@ -128,7 +126,7 @@ class TestAchievementDeduplication:
         # Both should be kept since they're for different stats
         assert len(deduplicated) == 2
 
-    def test_deduplicate_overlapping_consecutive(self):
+    def test_deduplicate_overlapping_consecutive(self) -> None:
         """Test that overlapping consecutive achievements keep only the highest count."""
         evaluator = AchievementEvaluator(achievements=[])
 
@@ -191,7 +189,7 @@ class TestAchievementDeduplication:
         assert deduplicated[0].achievement.id == "seven_win"
         assert deduplicated[0].achievement.consecutive_count == 7
 
-    def test_deduplicate_mixed_achievements(self):
+    def test_deduplicate_mixed_achievements(self) -> None:
         """Test deduplication with both consecutive and non-consecutive achievements."""
         evaluator = AchievementEvaluator(achievements=[])
 

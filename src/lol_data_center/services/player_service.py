@@ -19,7 +19,7 @@ class PlayerService:
         self,
         session: AsyncSession,
         api_client: RiotApiClient | None = None,
-    ):
+    ) -> None:
         """Initialize the player service.
 
         Args:
@@ -154,7 +154,7 @@ class PlayerService:
             List of active TrackedPlayer instances
         """
         result = await self._session.execute(
-            select(TrackedPlayer).where(TrackedPlayer.polling_enabled == True)
+            select(TrackedPlayer).where(TrackedPlayer.polling_enabled.is_(True))
         )
         return list(result.scalars().all())
 

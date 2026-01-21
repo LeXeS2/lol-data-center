@@ -1,5 +1,9 @@
 """Achievement evaluator component that listens for new matches."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from lol_data_center.achievements.conditions import create_condition
 from lol_data_center.achievements.definitions import load_achievements
 from lol_data_center.database.engine import get_async_session
@@ -8,6 +12,9 @@ from lol_data_center.events.event_bus import EventBus, NewMatchEvent, get_event_
 from lol_data_center.logging_config import get_logger
 from lol_data_center.notifications.discord import DiscordNotifier
 from lol_data_center.schemas.achievements import AchievementDefinition, AchievementResult
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -24,7 +31,7 @@ class AchievementEvaluator:
         event_bus: EventBus | None = None,
         notifier: DiscordNotifier | None = None,
         achievements: list[AchievementDefinition] | None = None,
-    ):
+    ) -> None:
         """Initialize the achievement evaluator.
 
         Args:
@@ -142,7 +149,7 @@ class AchievementEvaluator:
         achievement: AchievementDefinition,
         player: TrackedPlayer,
         event: NewMatchEvent,
-        session: "AsyncSession",  # type: ignore
+        session: AsyncSession,
     ) -> AchievementResult:
         """Evaluate a single achievement.
 

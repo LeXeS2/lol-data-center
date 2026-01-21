@@ -1,6 +1,7 @@
 """Background polling service for fetching new matches."""
 
 import asyncio
+from contextlib import suppress
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,10 +56,8 @@ class PollingService:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
         await self._api_client.close()
         logger.info("Polling service stopped")

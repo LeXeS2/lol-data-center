@@ -1,7 +1,10 @@
 """Tests for RiotApiClient."""
 
+from __future__ import annotations
+
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from lol_data_center.api_client.riot_client import Region, RiotApiClient
 
@@ -10,7 +13,7 @@ class TestFetchAllMatchIds:
     """Tests for RiotApiClient.fetch_all_match_ids method."""
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_single_page(self):
+    async def test_fetch_all_match_ids_single_page(self) -> None:
         """Test fetching all match IDs when results fit in one page."""
         client = RiotApiClient(api_key="test-key")
 
@@ -29,7 +32,7 @@ class TestFetchAllMatchIds:
         client.get_match_ids.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_multiple_pages(self):
+    async def test_fetch_all_match_ids_multiple_pages(self) -> None:
         """Test fetching all match IDs across multiple pages."""
         client = RiotApiClient(api_key="test-key")
 
@@ -60,7 +63,7 @@ class TestFetchAllMatchIds:
         assert calls[2].kwargs["count"] == 100
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_empty_result(self):
+    async def test_fetch_all_match_ids_empty_result(self) -> None:
         """Test fetching all match IDs when player has no matches."""
         client = RiotApiClient(api_key="test-key")
 
@@ -76,7 +79,7 @@ class TestFetchAllMatchIds:
         client.get_match_ids.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_exact_page_boundary(self):
+    async def test_fetch_all_match_ids_exact_page_boundary(self) -> None:
         """Test fetching when results are exactly at page boundary (100)."""
         client = RiotApiClient(api_key="test-key")
 
@@ -96,7 +99,7 @@ class TestFetchAllMatchIds:
         assert client.get_match_ids.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_with_filters(self):
+    async def test_fetch_all_match_ids_with_filters(self) -> None:
         """Test fetching all match IDs with optional filters."""
         client = RiotApiClient(api_key="test-key")
 
@@ -122,7 +125,7 @@ class TestFetchAllMatchIds:
         assert call_kwargs["end_time"] == 1704153600
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_large_history(self):
+    async def test_fetch_all_match_ids_large_history(self) -> None:
         """Test fetching all match IDs for player with large match history."""
         client = RiotApiClient(api_key="test-key")
 
@@ -148,7 +151,7 @@ class TestFetchAllMatchIds:
         assert last_call.kwargs["count"] == 100
 
     @pytest.mark.asyncio
-    async def test_fetch_all_match_ids_pagination_consistency(self):
+    async def test_fetch_all_match_ids_pagination_consistency(self) -> None:
         """Test that pagination maintains correct start indices."""
         client = RiotApiClient(api_key="test-key")
 

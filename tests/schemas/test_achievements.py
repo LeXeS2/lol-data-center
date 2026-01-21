@@ -1,5 +1,7 @@
 """Tests for Achievement schemas."""
 
+from __future__ import annotations
+
 from lol_data_center.schemas.achievements import (
     AchievementDefinition,
     AchievementResult,
@@ -11,7 +13,7 @@ from lol_data_center.schemas.achievements import (
 class TestAchievementDefinition:
     """Tests for AchievementDefinition schema."""
 
-    def test_absolute_condition_definition(self):
+    def test_absolute_condition_definition(self) -> None:
         """Test creating an absolute condition definition."""
         definition = AchievementDefinition(
             id="high_kills",
@@ -29,7 +31,7 @@ class TestAchievementDefinition:
         assert definition.operator == Operator.GTE
         assert definition.threshold == 10
 
-    def test_personal_max_definition(self):
+    def test_personal_max_definition(self) -> None:
         """Test creating a personal max condition definition."""
         definition = AchievementDefinition(
             id="new_kill_record",
@@ -44,7 +46,7 @@ class TestAchievementDefinition:
         assert definition.operator is None
         assert definition.threshold is None
 
-    def test_percentile_definition(self):
+    def test_percentile_definition(self) -> None:
         """Test creating a percentile condition definition."""
         definition = AchievementDefinition(
             id="top_killer",
@@ -64,7 +66,7 @@ class TestAchievementDefinition:
 class TestAchievementResult:
     """Tests for AchievementResult schema."""
 
-    def test_format_message(self):
+    def test_format_message(self) -> None:
         """Test message formatting."""
         definition = AchievementDefinition(
             id="test",

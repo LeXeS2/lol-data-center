@@ -1,23 +1,33 @@
 """Tests for the event bus."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 
 from lol_data_center.events.event_bus import EventBus, NewMatchEvent, reset_event_bus
-from lol_data_center.schemas.riot_api import MatchDto, ParticipantDto
+
+if TYPE_CHECKING:
+    from lol_data_center.schemas.riot_api import MatchDto, ParticipantDto
 
 
 class TestEventBus:
     """Tests for the EventBus class."""
 
     @pytest.fixture(autouse=True)
-    def setup(self):
+    def setup(self) -> None:
         """Reset event bus before each test."""
         reset_event_bus()
         yield
         reset_event_bus()
 
     @pytest.mark.asyncio
-    async def test_subscribe_and_publish(self, sample_match_dto, sample_participant_dto):
+    async def test_subscribe_and_publish(
+        self,
+        sample_match_dto: MatchDto,
+        sample_participant_dto: ParticipantDto,
+    ) -> None:
         """Test subscribing and publishing events."""
         bus = EventBus()
         received_events: list[NewMatchEvent] = []
@@ -42,7 +52,11 @@ class TestEventBus:
         assert received_events[0].match_id == "EUW1_12345"
 
     @pytest.mark.asyncio
-    async def test_multiple_subscribers(self, sample_match_dto, sample_participant_dto):
+    async def test_multiple_subscribers(
+        self,
+        sample_match_dto: MatchDto,
+        sample_participant_dto: ParticipantDto,
+    ) -> None:
         """Test multiple subscribers receive the same event."""
         bus = EventBus()
         handler1_count = 0
@@ -73,7 +87,11 @@ class TestEventBus:
         assert handler2_count == 1
 
     @pytest.mark.asyncio
-    async def test_unsubscribe(self, sample_match_dto, sample_participant_dto):
+    async def test_unsubscribe(
+        self,
+        sample_match_dto: MatchDto,
+        sample_participant_dto: ParticipantDto,
+    ) -> None:
         """Test unsubscribing from events."""
         bus = EventBus()
         call_count = 0
@@ -98,7 +116,11 @@ class TestEventBus:
         assert call_count == 0
 
     @pytest.mark.asyncio
-    async def test_handler_error_isolation(self, sample_match_dto, sample_participant_dto):
+    async def test_handler_error_isolation(
+        self,
+        sample_match_dto: MatchDto,
+        sample_participant_dto: ParticipantDto,
+    ) -> None:
         """Test that errors in one handler don't affect others."""
         bus = EventBus()
         handler2_called = False
@@ -129,7 +151,11 @@ class TestEventBus:
         assert handler2_called is True
 
     @pytest.mark.asyncio
-    async def test_no_handlers(self, sample_match_dto, sample_participant_dto):
+    async def test_no_handlers(
+        self,
+        sample_match_dto: MatchDto,
+        sample_participant_dto: ParticipantDto,
+    ) -> None:
         """Test publishing to event with no handlers."""
         bus = EventBus()
 
@@ -145,7 +171,7 @@ class TestEventBus:
         success_count = await bus.publish(event)
         assert success_count == 0
 
-    def test_get_handler_count(self):
+    def test_get_handler_count(self) -> None:
         """Test getting handler count."""
         bus = EventBus()
 
@@ -160,7 +186,7 @@ class TestEventBus:
         bus.subscribe(NewMatchEvent, handler)  # Same handler again
         assert bus.get_handler_count(NewMatchEvent) == 2
 
-    def test_clear(self):
+    def test_clear(self) -> None:
         """Test clearing all handlers."""
         bus = EventBus()
 

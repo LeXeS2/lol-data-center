@@ -4,7 +4,6 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any
 
 import structlog
 from structlog.types import Processor
@@ -73,7 +72,7 @@ def configure_logging() -> None:
     )
 
 
-def get_logger(name: str | None = None, **initial_context: Any) -> structlog.BoundLogger:
+def get_logger(name: str | None = None, **initial_context: object) -> structlog.BoundLogger:
     """Get a logger instance with optional initial context.
 
     Args:

@@ -3,15 +3,18 @@
 import asyncio
 import os
 from collections.abc import AsyncGenerator, Generator
-from datetime import datetime
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
-from lol_data_center.database.models import Base, TrackedPlayer, PlayerRecord
+from lol_data_center.database.models import Base, PlayerRecord, TrackedPlayer
 from lol_data_center.schemas.riot_api import (
     AccountDto,
     MatchDto,
@@ -37,7 +40,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest_asyncio.fixture
-async def async_engine():
+async def async_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create an async SQLite engine for testing."""
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -53,7 +56,7 @@ async def async_engine():
 
 
 @pytest_asyncio.fixture
-async def async_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
+async def async_session(async_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
     """Create an async database session for testing."""
     session_factory = async_sessionmaker(
         bind=async_engine,

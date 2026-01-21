@@ -1,7 +1,10 @@
 """Tests for achievement conditions."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from lol_data_center.achievements.conditions import (
     AbsoluteCondition,
@@ -9,13 +12,16 @@ from lol_data_center.achievements.conditions import (
     PersonalMinCondition,
     create_condition,
 )
-from lol_data_center.database.models import PlayerRecord, TrackedPlayer
+from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.schemas.achievements import (
     AchievementDefinition,
     ConditionType,
     Operator,
 )
 from lol_data_center.schemas.riot_api import ParticipantDto
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class TestAbsoluteCondition:
@@ -26,8 +32,8 @@ class TestAbsoluteCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test greater than condition when met."""
         definition = AchievementDefinition(
             id="high_kills",
@@ -51,8 +57,8 @@ class TestAbsoluteCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test greater than condition when not met."""
         definition = AchievementDefinition(
             id="very_high_kills",
@@ -76,8 +82,8 @@ class TestAbsoluteCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test equals condition for perfect game (0 deaths would be)."""
         # Modify participant to have 0 deaths
         sample_participant_dto.deaths = 0
@@ -108,8 +114,8 @@ class TestPersonalMaxCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test when a new personal maximum is achieved."""
         # Set kills higher than current record (15)
         sample_participant_dto.kills = 20
@@ -135,8 +141,8 @@ class TestPersonalMaxCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test when no new personal maximum is achieved."""
         # Set kills lower than current record (15)
         sample_participant_dto.kills = 10
@@ -164,8 +170,8 @@ class TestPersonalMinCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test when a new personal minimum is achieved."""
         # Set deaths lower than current record (2)
         sample_participant_dto.deaths = 1
@@ -191,8 +197,8 @@ class TestPersonalMinCondition:
         self,
         sample_participant_dto: ParticipantDto,
         sample_player: TrackedPlayer,
-        async_session,
-    ):
+        async_session: AsyncSession,
+    ) -> None:
         """Test that values below min_value are excluded."""
         # Set deaths to 0 (below min_value of 1)
         sample_participant_dto.deaths = 0
@@ -217,7 +223,7 @@ class TestPersonalMinCondition:
 class TestConditionFactory:
     """Tests for the condition factory function."""
 
-    def test_create_absolute_condition(self):
+    def test_create_absolute_condition(self) -> None:
         """Test creating an absolute condition."""
         definition = AchievementDefinition(
             id="test",
@@ -233,7 +239,7 @@ class TestConditionFactory:
         condition = create_condition(definition)
         assert isinstance(condition, AbsoluteCondition)
 
-    def test_create_personal_max_condition(self):
+    def test_create_personal_max_condition(self) -> None:
         """Test creating a personal max condition."""
         definition = AchievementDefinition(
             id="test",
@@ -247,7 +253,7 @@ class TestConditionFactory:
         condition = create_condition(definition)
         assert isinstance(condition, PersonalMaxCondition)
 
-    def test_create_personal_min_condition(self):
+    def test_create_personal_min_condition(self) -> None:
         """Test creating a personal min condition."""
         definition = AchievementDefinition(
             id="test",

@@ -1,6 +1,8 @@
 """Tests for Discord notifications."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from __future__ import annotations
+
+from unittest.mock import AsyncMock
 
 import pytest
 from aiohttp import ClientSession
@@ -12,7 +14,7 @@ class TestDiscordNotifier:
     """Tests for DiscordNotifier."""
 
     @pytest.mark.asyncio
-    async def test_send_message_success(self):
+    async def test_send_message_success(self) -> None:
         """Test sending a message successfully."""
         webhook_url = "https://discord.com/api/webhooks/test"
         notifier = DiscordNotifier(webhook_url=webhook_url)
@@ -20,10 +22,10 @@ class TestDiscordNotifier:
         # Mock the session and post context manager
         mock_response = AsyncMock()
         mock_response.status = 204
-        
+
         mock_post = AsyncMock()
         mock_post.__aenter__.return_value = mock_response
-        
+
         mock_session = AsyncMock(spec=ClientSession)
         mock_session.post.return_value = mock_post
         mock_session.closed = False
@@ -42,7 +44,7 @@ class TestDiscordNotifier:
         await notifier.close()
 
     @pytest.mark.asyncio
-    async def test_send_achievement(self):
+    async def test_send_achievement(self) -> None:
         """Test sending an achievement notification."""
         notifier = DiscordNotifier(webhook_url="test")
         notifier.send_message = AsyncMock(return_value=True)

@@ -1,8 +1,9 @@
 """Async Riot API client with rate limiting and validation."""
 
+from __future__ import annotations
+
 import asyncio
 from enum import Enum
-from typing import Any
 
 import aiohttp
 
@@ -13,7 +14,6 @@ from lol_data_center.logging_config import get_logger
 from lol_data_center.schemas.riot_api import (
     AccountDto,
     MatchDto,
-    MatchIdsResponse,
     SummonerDto,
 )
 
@@ -64,7 +64,7 @@ REGION_TO_PLATFORMS: dict[Region, list[Platform]] = {
 class RiotApiError(Exception):
     """Exception for Riot API errors."""
 
-    def __init__(self, status_code: int, message: str, url: str):
+    def __init__(self, status_code: int, message: str, url: str) -> None:
         super().__init__(f"Riot API error {status_code}: {message}")
         self.status_code = status_code
         self.url = url
@@ -83,7 +83,7 @@ class RiotApiClient:
         self,
         api_key: str | None = None,
         rate_limiter: RateLimiter | None = None,
-    ):
+    ) -> None:
         """Initialize the Riot API client.
 
         Args:
@@ -113,11 +113,16 @@ class RiotApiClient:
             await self._session.close()
             self._session = None
 
-    async def __aenter__(self) -> "RiotApiClient":
+    async def __aenter__(self) -> RiotApiClient:
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self,
+        exc_type: BaseException | None,
+        exc_val: BaseException | None,
+        exc_tb: BaseException | None,
+    ) -> None:
         """Async context manager exit."""
         await self.close()
 
@@ -138,8 +143,8 @@ class RiotApiClient:
         routing: str,
         endpoint: str,
         method: str = "GET",
-        params: dict[str, Any] | None = None,
-    ) -> Any:
+        params: dict[str, object] | None = None,
+    ) -> object:
         """Make a rate-limited request to the Riot API.
 
         Args:
@@ -322,7 +327,7 @@ class RiotApiClient:
             List of match IDs
         """
         endpoint = f"/lol/match/v5/matches/by-puuid/{puuid}/ids"
-        params: dict[str, Any] = {"start": start, "count": min(count, 100)}
+        params: dict[str, object] = {"start": start, "count": min(count, 100)}
 
         if queue is not None:
             params["queue"] = queue

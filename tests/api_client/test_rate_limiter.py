@@ -1,5 +1,7 @@
 """Tests for the rate limiter."""
 
+from __future__ import annotations
+
 import asyncio
 import time
 
@@ -12,7 +14,7 @@ class TestRateLimiter:
     """Tests for the RateLimiter class."""
 
     @pytest.mark.asyncio
-    async def test_acquire_when_tokens_available(self):
+    async def test_acquire_when_tokens_available(self) -> None:
         """Test acquiring tokens when tokens are available."""
         limiter = RateLimiter(max_tokens=10, refill_period_seconds=60)
 
@@ -22,7 +24,7 @@ class TestRateLimiter:
         assert limiter.tokens == 9.0
 
     @pytest.mark.asyncio
-    async def test_acquire_multiple_tokens(self):
+    async def test_acquire_multiple_tokens(self) -> None:
         """Test acquiring multiple tokens at once."""
         limiter = RateLimiter(max_tokens=10, refill_period_seconds=60)
 
@@ -31,7 +33,7 @@ class TestRateLimiter:
         assert limiter.tokens == 5.0
 
     @pytest.mark.asyncio
-    async def test_acquire_waits_when_no_tokens(self):
+    async def test_acquire_waits_when_no_tokens(self) -> None:
         """Test that acquire waits when no tokens are available."""
         limiter = RateLimiter(max_tokens=2, refill_period_seconds=2)
 
@@ -47,7 +49,7 @@ class TestRateLimiter:
         assert elapsed >= 0.9  # Allow some tolerance
 
     @pytest.mark.asyncio
-    async def test_tokens_refill_over_time(self):
+    async def test_tokens_refill_over_time(self) -> None:
         """Test that tokens refill over time."""
         limiter = RateLimiter(max_tokens=10, refill_period_seconds=1)
 
@@ -65,7 +67,7 @@ class TestRateLimiter:
         assert limiter.tokens > 4.0
 
     @pytest.mark.asyncio
-    async def test_tokens_dont_exceed_max(self):
+    async def test_tokens_dont_exceed_max(self) -> None:
         """Test that tokens don't exceed maximum."""
         limiter = RateLimiter(max_tokens=10, refill_period_seconds=1)
 
@@ -78,11 +80,11 @@ class TestRateLimiter:
         assert limiter.tokens <= limiter.max_tokens
 
     @pytest.mark.asyncio
-    async def test_concurrent_access(self):
+    async def test_concurrent_access(self) -> None:
         """Test thread safety with concurrent access."""
         limiter = RateLimiter(max_tokens=10, refill_period_seconds=60)
 
-        async def acquire_one():
+        async def acquire_one() -> None:
             await limiter.acquire(1)
 
         # Run multiple concurrent acquires
@@ -91,7 +93,7 @@ class TestRateLimiter:
         # Should have used 5 tokens
         assert round(limiter.tokens, 4) == 5.0
 
-    def test_refill_rate_calculation(self):
+    def test_refill_rate_calculation(self) -> None:
         """Test refill rate calculation."""
         limiter = RateLimiter(max_tokens=100, refill_period_seconds=120)
 
@@ -99,7 +101,7 @@ class TestRateLimiter:
         assert limiter.refill_rate == pytest.approx(100 / 120)
 
     @pytest.mark.asyncio
-    async def test_available_tokens(self):
+    async def test_available_tokens(self) -> None:
         """Test available_tokens method."""
         limiter = RateLimiter(max_tokens=10, refill_period_seconds=60)
 

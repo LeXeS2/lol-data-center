@@ -5,9 +5,8 @@ Fields are based on the official Riot API documentation.
 """
 
 from datetime import datetime
-from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class AccountDto(BaseModel):
@@ -22,14 +21,14 @@ class AccountDto(BaseModel):
 
 class SummonerDto(BaseModel):
     """Summoner information from summoner-v4 API.
-    
+
     Note: As of recent API changes, accountId and id are no longer returned.
     """
 
-    account_id: Optional[str] = Field(None, alias="accountId")
+    account_id: str | None = Field(None, alias="accountId")
     profile_icon_id: int = Field(..., alias="profileIconId")
     revision_date: int = Field(..., alias="revisionDate")
-    id: Optional[str] = Field(None, description="Encrypted summoner ID (deprecated)")
+    id: str | None = Field(None, description="Encrypted summoner ID (deprecated)")
     puuid: str
     summoner_level: int = Field(..., alias="summonerLevel")
 
@@ -46,9 +45,9 @@ class ParticipantDto(BaseModel):
     # Player identification
     puuid: str
     summoner_name: str = Field(..., alias="summonerName")
-    summoner_id: Optional[str] = Field(None, alias="summonerId")
-    riot_id_game_name: Optional[str] = Field(None, alias="riotIdGameName")
-    riot_id_tagline: Optional[str] = Field(None, alias="riotIdTagline")
+    summoner_id: str | None = Field(None, alias="summonerId")
+    riot_id_game_name: str | None = Field(None, alias="riotIdGameName")
+    riot_id_tagline: str | None = Field(None, alias="riotIdTagline")
     profile_icon: int = Field(..., alias="profileIcon")
     summoner_level: int = Field(..., alias="summonerLevel")
 
@@ -155,7 +154,7 @@ class MatchInfoDto(BaseModel):
 
     game_creation: int = Field(..., alias="gameCreation")
     game_duration: int = Field(..., alias="gameDuration")
-    game_end_timestamp: Optional[int] = Field(None, alias="gameEndTimestamp")
+    game_end_timestamp: int | None = Field(None, alias="gameEndTimestamp")
     game_id: int = Field(..., alias="gameId")
     game_mode: str = Field(..., alias="gameMode")
     game_name: str = Field("", alias="gameName")
@@ -166,7 +165,7 @@ class MatchInfoDto(BaseModel):
     platform_id: str = Field(..., alias="platformId")
     queue_id: int = Field(..., alias="queueId")
     teams: list[TeamDto]
-    tournament_code: Optional[str] = Field(None, alias="tournamentCode")
+    tournament_code: str | None = Field(None, alias="tournamentCode")
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
 
@@ -176,7 +175,7 @@ class MatchInfoDto(BaseModel):
         return datetime.fromtimestamp(self.game_creation / 1000)
 
     @property
-    def game_end_datetime(self) -> Optional[datetime]:
+    def game_end_datetime(self) -> datetime | None:
         """Convert game end timestamp to datetime."""
         if self.game_end_timestamp:
             return datetime.fromtimestamp(self.game_end_timestamp / 1000)
@@ -199,7 +198,7 @@ class MatchDto(BaseModel):
     metadata: MatchMetadataDto
     info: MatchInfoDto
 
-    def get_participant_by_puuid(self, puuid: str) -> Optional[ParticipantDto]:
+    def get_participant_by_puuid(self, puuid: str) -> ParticipantDto | None:
         """Get participant data by PUUID."""
         for participant in self.info.participants:
             if participant.puuid == puuid:
