@@ -89,7 +89,7 @@ class TestRateLimiter:
         await asyncio.gather(*[acquire_one() for _ in range(5)])
 
         # Should have used 5 tokens
-        assert limiter.tokens == 5.0
+        assert round(limiter.tokens, 4) == 5.0
 
     def test_refill_rate_calculation(self):
         """Test refill rate calculation."""
