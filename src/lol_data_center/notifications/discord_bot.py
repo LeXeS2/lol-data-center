@@ -135,6 +135,18 @@ class DiscordBot:
                 # Add player to database and start backfill
                 async with get_async_session() as session:
                     service = PlayerService(session)
+
+                    # Check if player already exists
+                    existing_player = await service.get_player_by_riot_id(
+                        game_name, tag_line
+                    )
+                    if existing_player:
+                        await interaction.followup.send(
+                            f"⚠️ Player **{riot_id}** is already being tracked.",
+                            ephemeral=True,
+                        )
+                        return
+
                     player = await service.add_player(
                         game_name, tag_line, region_enum, platform_enum
                     )
@@ -150,7 +162,7 @@ class DiscordBot:
                     embed.add_field(
                         name="📊 Status",
                         value=(
-                            "Fetching match history (this may take 1-3 minutes)\n"
+                            "Fetching match history (this may take 10-15 minutes)\n"
                             "You will receive a notification when complete."
                         ),
                         inline=False,
