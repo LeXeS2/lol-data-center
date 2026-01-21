@@ -293,7 +293,7 @@ def poll_now(
                 console.print(f"[bold green]✓[/bold green] Found {new_matches} new matches")
         else:
             console.print("[bold]Polling all players...[/bold]")
-            await service._poll_all_players()
+            await service.poll_all_players_once()
             console.print("[bold green]✓[/bold green] Polling complete")
 
         await service._api_client.close()

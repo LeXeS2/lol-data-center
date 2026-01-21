@@ -317,13 +317,10 @@ class DiscordBot:
                         )
                 else:
                     # Poll all players
-                    await polling_service._poll_all_players()
+                    await polling_service.poll_all_players_once()
                     await interaction.followup.send(
                         "✅ Polling complete for all players",
                     )
-
-                # Clean up API client
-                await polling_service._api_client.close()
 
                 logger.info(
                     "Manual poll triggered via Discord bot",
