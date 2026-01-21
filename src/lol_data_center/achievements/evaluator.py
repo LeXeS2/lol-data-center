@@ -78,10 +78,10 @@ class AchievementEvaluator:
             # Get the player from database
             from sqlalchemy import select
 
-            result = await session.execute(
+            player_result = await session.execute(
                 select(TrackedPlayer).where(TrackedPlayer.puuid == event.player_puuid)
             )
-            player = result.scalar_one_or_none()
+            player = player_result.scalar_one_or_none()
 
             if player is None:
                 logger.warning(
@@ -93,15 +93,15 @@ class AchievementEvaluator:
             # Evaluate each achievement
             for achievement_def in self._achievements:
                 try:
-                    result = await self._evaluate_achievement(
+                    achievement_result = await self._evaluate_achievement(
                         achievement_def,
                         player,
                         event,
                         session,
                     )
 
-                    if result.triggered:
-                        triggered_achievements.append(result)
+                    if achievement_result.triggered:
+                        triggered_achievements.append(achievement_result)
 
                 except Exception as e:
                     logger.error(
