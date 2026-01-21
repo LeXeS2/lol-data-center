@@ -1,7 +1,6 @@
 """Discord bot integration for interactive commands."""
 
 import asyncio
-from typing import Any
 
 import discord
 from discord import app_commands
@@ -19,7 +18,7 @@ logger = get_logger(__name__)
 class DiscordBot:
     """Discord bot with slash commands for interacting with the application."""
 
-    def __init__(self, token: str | None = None):
+    def __init__(self, token: str | None = None) -> None:
         """Initialize the Discord bot.
 
         Args:
@@ -53,11 +52,12 @@ class DiscordBot:
             if self._client and self._client.user:
                 logger.info("Discord bot connected", user=self._client.user.name)
                 # Sync commands with Discord
-                try:
-                    synced = await self._tree.sync()
-                    logger.info("Synced slash commands", count=len(synced))
-                except Exception as e:
-                    logger.error("Failed to sync commands", error=str(e))
+                if self._tree:
+                    try:
+                        synced = await self._tree.sync()
+                        logger.info("Synced slash commands", count=len(synced))
+                    except Exception as e:
+                        logger.error("Failed to sync commands", error=str(e))
 
         self._is_running = True
 
