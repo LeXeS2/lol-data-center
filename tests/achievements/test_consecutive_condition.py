@@ -261,8 +261,11 @@ class TestConsecutiveCondition:
             # Create matches in reverse chronological order (most recent first)
             game_creation = base_time - timedelta(hours=i + 1)
 
+            # Use a unique match ID that includes the timestamp to avoid collisions
+            match_id = f"TEST_MATCH_{win}_{i}_{int(game_creation.timestamp())}"
+
             match = Match(
-                match_id=f"TEST_MATCH_{i}",
+                match_id=match_id,
                 data_version="2",
                 game_creation=game_creation,
                 game_duration=1800,
