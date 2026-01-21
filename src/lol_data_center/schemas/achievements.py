@@ -14,6 +14,7 @@ class ConditionType(str, Enum):
     PERSONAL_MIN = "personal_min"  # New personal minimum
     POPULATION_PERCENTILE = "population_percentile"  # Compared to all players
     PLAYER_PERCENTILE = "player_percentile"  # Compared to own history
+    CONSECUTIVE = "consecutive"  # Condition met across N consecutive games
 
 
 class Operator(str, Enum):
@@ -66,6 +67,13 @@ class AchievementDefinition(BaseModel):
         None,
         pattern="^(high|low)$",
         description="Whether high or low values achieve the percentile",
+    )
+
+    # For CONSECUTIVE conditions
+    consecutive_count: Optional[int] = Field(
+        None,
+        ge=2,
+        description="Number of consecutive games that must meet the condition",
     )
 
     # Discord message
