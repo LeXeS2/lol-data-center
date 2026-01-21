@@ -309,6 +309,8 @@ class MatchService:
         
         # Fetch all values for manual standard deviation calculation
         # This is necessary because SQLite doesn't support stddev_samp
+        # NOTE: For very large datasets (thousands of matches), consider using database-level
+        # aggregation or streaming approaches to reduce memory usage
         values_query = select(column).select_from(MatchParticipant)
         
         if conditions:
@@ -338,6 +340,7 @@ class MatchService:
         mean = sum(values) / count
         
         # Calculate standard deviation (sample)
+        # Note: count > 1 is guaranteed by the check above, so division by (count - 1) is safe
         variance = sum((x - mean) ** 2 for x in values) / (count - 1)
         stddev = variance ** 0.5
         

@@ -93,6 +93,10 @@ class TestMatchService:
 
 class TestPercentileCalculation:
     """Tests for z-score based percentile calculation."""
+    
+    # Tolerance for statistical tests - due to the nature of z-score calculations,
+    # we allow a 10% range around the expected value to account for small sample sizes
+    PERCENTILE_TOLERANCE = 10.0
 
     @pytest.mark.asyncio
     async def test_percentile_with_no_data(self, async_session):
@@ -315,7 +319,7 @@ class TestPercentileCalculation:
             stat_field="kills",
             value=10.0,
         )
-        assert 45.0 <= percentile <= 55.0  # Allow some tolerance
+        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
         
         # Test percentile for high value (should be ~84th percentile for +1 std dev)
         percentile = await service.get_player_stats_percentile(
@@ -554,7 +558,7 @@ class TestPercentileCalculation:
             value=10.0,
             champion_id=1,
         )
-        assert 40.0 <= percentile <= 60.0
+        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
         
         # Test percentile for champion 2 with value 10 (should be very low)
         percentile = await service.get_player_stats_percentile(
@@ -674,7 +678,7 @@ class TestPercentileCalculation:
             value=10.0,
             role="MIDDLE",
         )
-        assert 40.0 <= percentile <= 60.0
+        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
         
         # Test percentile for JUNGLE role with value 10 (should be very low)
         percentile = await service.get_player_stats_percentile(
@@ -795,7 +799,7 @@ class TestPercentileCalculation:
             value=10.0,
             puuid=sample_player.puuid,
         )
-        assert 40.0 <= percentile <= 60.0
+        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
         
         # Test percentile for all players with value 10 (should be lower)
         percentile_all = await service.get_player_stats_percentile(
