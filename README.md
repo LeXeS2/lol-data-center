@@ -123,10 +123,9 @@ The Discord bot enables interactive slash commands for managing players directly
    - Use the generated URL to invite the bot to your server
 
 3. **Available Slash Commands**:
-   - `/add-player` - Add a player to track
+   - `/add-player` - Add a player to track (includes automatic match history backfill with progress notifications)
    - `/remove-player` - Remove a player from tracking
    - `/list-players` - List all tracked players
-   - `/poll-now` - Manually trigger polling
 
 Note: The Discord bot is optional. The application will run without it if `DISCORD_BOT_TOKEN` is not configured.
 

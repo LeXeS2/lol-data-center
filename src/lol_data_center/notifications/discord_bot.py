@@ -4,13 +4,16 @@ import asyncio
 
 import discord
 from discord import app_commands
+from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session
+from lol_data_center.database.models import MatchParticipant, TrackedPlayer
 from lol_data_center.logging_config import get_logger
+from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
-from lol_data_center.services.polling_service import PollingService
 
 logger = get_logger(__name__)
 
@@ -129,25 +132,41 @@ class DiscordBot:
                     )
                     return
 
-                # Add player to database
+                # Add player to database and start backfill
                 async with get_async_session() as session:
                     service = PlayerService(session)
                     player = await service.add_player(
                         game_name, tag_line, region_enum, platform_enum
                     )
 
-                    # Send success response
+                    # Send initial response with estimated time
                     embed = discord.Embed(
-                        title="✅ Player Added Successfully",
-                        description=f"Now tracking **{player.riot_id}**",
-                        color=discord.Color.green(),
+                        title="⏳ Adding Player...",
+                        description=f"**{player.riot_id}** is being added to tracking.",
+                        color=discord.Color.blue(),
                     )
                     embed.add_field(name="Region", value=player.region, inline=True)
-                    embed.add_field(name="PUUID", value=player.puuid[:20] + "...", inline=True)
+                    embed.add_field(name="Platform", value=platform, inline=True)
+                    embed.add_field(
+                        name="📊 Status",
+                        value=(
+                            "Fetching match history (this may take 1-3 minutes)\n"
+                            "You will receive a notification when complete."
+                        ),
+                        inline=False,
+                    )
 
                     await interaction.followup.send(embed=embed)
+
+                    # Start background task for backfill
+                    asyncio.create_task(
+                        self._backfill_and_notify(
+                            interaction, player, region_enum, session
+                        )
+                    )
+
                     logger.info(
-                        "Player added via Discord bot",
+                        "Player add initiated via Discord bot",
                         riot_id=riot_id,
                         user=str(interaction.user),
                     )
@@ -270,70 +289,91 @@ class DiscordBot:
                     ephemeral=True,
                 )
 
-        @self._tree.command(
-            name="poll-now",
-            description="Manually trigger polling for a player or all players",
-        )
-        @app_commands.describe(riot_id="Optional: Player's Riot ID to poll (leave empty for all)")
-        async def poll_now_command(
-            interaction: discord.Interaction,
-            riot_id: str = "",
-        ) -> None:
-            """Manually trigger polling."""
-            await interaction.response.defer(thinking=True)
+    async def _backfill_and_notify(
+        self,
+        interaction: discord.Interaction,
+        player: TrackedPlayer,
+        region: Region,
+        session: AsyncSession,
+    ) -> None:
+        """Backfill player history and notify when complete.
 
-            try:
-                polling_service = PollingService()
+        Args:
+            interaction: Discord interaction for sending follow-up
+            player: The tracked player
+            region: Region for API calls
+            session: Database session
+        """
+        try:
+            backfill_service = BackfillService(session)
 
-                if riot_id:
-                    # Poll specific player
-                    if "#" not in riot_id:
-                        await interaction.followup.send(
-                            "❌ Error: Riot ID must be in format GameName#TAG",
-                            ephemeral=True,
-                        )
-                        return
+            # Perform backfill
+            saved_count = await backfill_service.backfill_player_history(
+                player=player,
+                region=region,
+            )
 
-                    game_name, tag_line = riot_id.rsplit("#", 1)
-
-                    async with get_async_session() as session:
-                        player_service = PlayerService(session)
-                        player = await player_service.get_player_by_riot_id(
-                            game_name, tag_line
-                        )
-
-                        if player is None:
-                            await interaction.followup.send(
-                                f"❌ Error: Player not found: {riot_id}",
-                                ephemeral=True,
-                            )
-                            return
-
-                        new_matches = await polling_service.poll_player_once(player.puuid)
-
-                        await interaction.followup.send(
-                            f"✅ Poll complete for **{riot_id}**\n"
-                            f"Found {new_matches} new matches",
-                        )
-                else:
-                    # Poll all players
-                    await polling_service.poll_all_players_once()
-                    await interaction.followup.send(
-                        "✅ Polling complete for all players",
-                    )
-
-                logger.info(
-                    "Manual poll triggered via Discord bot",
-                    riot_id=riot_id or "all",
-                    user=str(interaction.user),
+            # Update last_match_id to prevent re-processing
+            if saved_count > 0:
+                result = await session.execute(
+                    select(MatchParticipant.match_id)
+                    .where(MatchParticipant.puuid == player.puuid)
+                    .order_by(desc(MatchParticipant.game_creation))
+                    .limit(1)
                 )
+                latest_match_id = result.scalar_one_or_none()
 
-            except Exception as e:
-                logger.exception("Error polling via Discord bot")
-                await interaction.followup.send(
-                    f"❌ An error occurred: {str(e)}",
-                    ephemeral=True,
-                )
+                if latest_match_id:
+                    player_service = PlayerService(session)
+                    await player_service.update_last_polled(player, latest_match_id)
+
+            # Send success notification
+            embed = discord.Embed(
+                title="✅ Player Added Successfully",
+                description=f"**{player.riot_id}** is now being tracked!",
+                color=discord.Color.green(),
+            )
+            embed.add_field(name="Region", value=player.region, inline=True)
+            embed.add_field(
+                name="Matches Loaded",
+                value=f"{saved_count} historical matches",
+                inline=True,
+            )
+            embed.add_field(
+                name="📈 Status",
+                value="Ready to track new matches!",
+                inline=False,
+            )
+
+            await interaction.followup.send(embed=embed)
+
+            logger.info(
+                "Player backfill complete via Discord bot",
+                riot_id=player.riot_id,
+                saved_count=saved_count,
+            )
+
+        except Exception as e:
+            logger.exception("Error during backfill via Discord bot")
+            embed = discord.Embed(
+                title="⚠️ Warning",
+                description=f"**{player.riot_id}** was added but match history loading failed.",
+                color=discord.Color.orange(),
+            )
+            embed.add_field(
+                name="Error",
+                value=str(e)[:1024],  # Discord field value limit
+                inline=False,
+            )
+            embed.add_field(
+                name="Next Steps",
+                value=(
+                    "The player is tracked but historical matches were not loaded. "
+                    "New matches will be tracked normally."
+                ),
+                inline=False,
+            )
+            await interaction.followup.send(embed=embed)
 
     async def stop(self) -> None:
         """Stop the Discord bot."""

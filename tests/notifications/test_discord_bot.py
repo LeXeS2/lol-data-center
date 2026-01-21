@@ -1,6 +1,6 @@
 """Tests for Discord bot commands."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -82,17 +82,3 @@ class TestDiscordBotCommands:
         # Test valid format
         riot_id_valid = "TestPlayer#EUW"
         assert "#" in riot_id_valid
-
-    @pytest.mark.asyncio
-    async def test_poll_now_command_validation(self):
-        """Test poll-now command Riot ID validation."""
-        # Test with empty Riot ID (poll all)
-        riot_id = ""
-        assert not riot_id
-        
-        # Test with specific player
-        riot_id = "TestPlayer#EUW"
-        assert "#" in riot_id
-        game_name, tag_line = riot_id.rsplit("#", 1)
-        assert game_name == "TestPlayer"
-        assert tag_line == "EUW"
