@@ -1,5 +1,57 @@
 # LoL Data Center - AI Coding Agent Instructions
 
+## Environment Setup
+
+### Prerequisites
+- **Python 3.11+** (strict requirement - uses modern type hints and async features)
+- **PostgreSQL 16+** for production (SQLite for tests)
+- **Docker & Docker Compose** (optional, for containerized development)
+
+### Quick Start
+```bash
+# 1. Create virtual environment
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# or: .venv\Scripts\activate  # Windows
+
+# 2. Install with dev dependencies
+pip install -e ".[dev]"
+
+# 3. Copy and configure .env
+cp .env.example .env
+# Edit .env with your RIOT_API_KEY, DATABASE_URL, DISCORD_WEBHOOK_URL
+
+# 4. Start database (Docker) or use local PostgreSQL
+docker-compose up -d db
+
+# 5. Run migrations
+alembic upgrade head
+
+# 6. Start application
+lol-data-center run
+```
+
+### Linting & Code Quality
+**Always run before committing:**
+```bash
+# Format and lint code
+ruff check src/ tests/           # Check for issues
+ruff check --fix src/ tests/     # Auto-fix issues
+ruff format src/ tests/          # Format code
+
+# Type checking (strict mode)
+mypy src/                        # Must pass with no errors
+
+# Run all quality checks
+ruff check src/ tests/ && ruff format --check src/ tests/ && mypy src/
+```
+
+**Linting rules (configured in pyproject.toml):**
+- Line length: 100 characters
+- Target: Python 3.11
+- Selected rules: E, F, I, N, W, UP, ANN, B, C4, SIM
+- Ignored: ANN101, ANN102 (self/cls annotations)
+
 ## Architecture Overview
 
 This is an **event-driven, async Python application** that polls Riot API for League of Legends match data, evaluates achievements, and sends Discord notifications.
@@ -153,3 +205,103 @@ class MyComponent:
 ```
 
 Register in `main.py` before `polling_service.start()`
+
+## Troubleshooting
+
+### Common Issues
+
+**1. Database Connection Errors**
+```
+asyncpg.exceptions.InvalidCatalogNameError: database "lol_data_center" does not exist
+```
+Solution: Create the database first:
+```bash
+docker-compose exec db psql -U postgres -c "CREATE DATABASE lol_data_center;"
+```
+
+**2. Riot API Rate Limiting**
+```
+RiotApiError: 429 Too Many Requests
+```
+Solution: The `RateLimiter` should handle this automatically. If it persists:
+- Check `POLLING_INTERVAL_SECONDS` (default 300s = 5 min)
+- Reduce number of tracked players
+- Verify rate limit: 100 requests / 2 minutes
+
+**3. Import Errors After Installing**
+```
+ModuleNotFoundError: No module named 'lol_data_center'
+```
+Solution: Ensure you installed in editable mode: `pip install -e ".[dev]"`
+
+**4. Alembic Migration Conflicts**
+```
+alembic.util.exc.CommandError: Target database is not up to date.
+```
+Solution: Check current revision and upgrade:
+```bash
+alembic current              # Show current revision
+alembic history              # Show all revisions
+alembic upgrade head         # Upgrade to latest
+```
+
+**5. Invalid API Responses**
+If you see validation errors, check `data/invalid_responses/` directory for saved responses. These help debug Riot API schema changes.
+
+### Testing Issues
+
+**Async test failures:**
+- Ensure `pytest-asyncio` is installed: `pip install pytest-asyncio`
+- Check `pyproject.toml` has `asyncio_mode = "auto"`
+
+**Database test issues:**
+- Tests use in-memory SQLite (`sqlite+aiosqlite:///:memory:`)
+- Each test gets fresh DB via `async_session` fixture
+- If tests fail with DB errors, check fixtures in `tests/conftest.py`
+
+## Security Considerations
+
+### API Key Management
+- **NEVER** commit `RIOT_API_KEY` or `DISCORD_WEBHOOK_URL` to source control
+- Use `.env` file (already in `.gitignore`)
+- Docker Compose reads from `.env` automatically
+- In production, use environment variables or secrets management
+
+### Database Security
+- Use **strong passwords** for PostgreSQL in production
+- Never expose database port (5432) to public internet
+- Connection strings with credentials should be in `.env` only
+
+### Rate Limiting
+- `RateLimiter` prevents API abuse (token bucket algorithm)
+- Respects `Retry-After` headers from Riot API
+- Default limit: 100 requests / 2 minutes (configurable)
+
+### Input Validation
+- All Riot API responses validated via Pydantic schemas
+- Invalid responses logged and saved for debugging
+- Discord webhook URLs validated before use
+
+### Error Handling
+- Services catch and log errors without exposing sensitive data
+- No raw exception messages sent to Discord notifications
+- Structured logging redacts sensitive fields
+
+## External Dependencies
+
+### Required APIs
+- **Riot Games API** - Get your API key at https://developer.riotgames.com/
+  - Free tier: 20 requests/second, 100 requests/2 minutes
+  - Development keys expire every 24 hours (need renewal)
+  - Production keys require application approval
+  
+- **Discord Webhooks** - Create in Discord server settings
+  - Server Settings → Integrations → Webhooks
+  - Copy webhook URL to `.env`
+
+### Python Packages
+- **SQLAlchemy 2.0+** - Async ORM (breaking changes from 1.x)
+- **Pydantic 2.5+** - Data validation (v2 has different API than v1)
+- **aiohttp** - Async HTTP client
+- **structlog** - Structured logging
+- **Alembic** - Database migrations
