@@ -265,11 +265,13 @@ class PopulationPercentileCondition(BaseCondition):
                 f"Population percentile requires percentile and direction: {self.definition.id}"
             )
 
-        # Calculate the percentile rank
+        # Calculate the percentile rank, filtered by champion and role for fairer comparison
         match_service = MatchService(session)
         percentile = await match_service.get_player_stats_percentile(
             stat_field=self.definition.stat_field,
             value=value,
+            champion_id=participant.champion_id,
+            role=participant.individual_position,
         )
 
         # Check if condition is met
@@ -307,12 +309,14 @@ class PlayerPercentileCondition(BaseCondition):
                 f"Player percentile requires percentile and direction: {self.definition.id}"
             )
 
-        # Calculate the percentile rank within player's games
+        # Calculate the percentile rank within player's games, filtered by champion and role
         match_service = MatchService(session)
         percentile = await match_service.get_player_stats_percentile(
             stat_field=self.definition.stat_field,
             value=value,
             puuid=player.puuid,
+            champion_id=participant.champion_id,
+            role=participant.individual_position,
         )
 
         # Check if condition is met
