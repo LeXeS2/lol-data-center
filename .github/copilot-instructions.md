@@ -214,9 +214,14 @@ Register in `main.py` before `polling_service.start()`
 ```
 asyncpg.exceptions.InvalidCatalogNameError: database "lol_data_center" does not exist
 ```
-Solution: Create the database first:
+Solution: The database should be auto-created by docker-compose. If using manual PostgreSQL:
 ```bash
-docker-compose exec db psql -U postgres -c "CREATE DATABASE lol_data_center;"
+# If using docker-compose
+docker-compose down -v  # Remove volumes and restart
+docker-compose up -d db
+
+# If using manual PostgreSQL installation
+psql -U postgres -c "CREATE DATABASE lol_data_center;"
 ```
 
 **2. Riot API Rate Limiting**
@@ -291,7 +296,7 @@ If you see validation errors, check `data/invalid_responses/` directory for save
 
 ### Required APIs
 - **Riot Games API** - Get your API key at https://developer.riotgames.com/
-  - Free tier: 20 requests/second, 100 requests/2 minutes
+  - Free tier: 20 requests/second, 100 requests/2 minutes (verify current limits at developer portal)
   - Development keys expire every 24 hours (need renewal)
   - Production keys require application approval
   
