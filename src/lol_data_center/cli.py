@@ -5,13 +5,18 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.table import Table
+from sqlalchemy import select, desc
 
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session, init_db
 from lol_data_center.logging_config import configure_logging, get_logger
+from lol_data_center.database.models import MatchParticipant
+from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
+
 
 app = typer.Typer(
     name="lol-data-center",
@@ -43,7 +48,9 @@ def run():
 @app.command()
 def add_player(
     riot_id: str = typer.Argument(..., help="Player Riot ID (GameName#TagLine)"),
-    region: str = typer.Option("europe", "--region", "-r", help="Region (americas, asia, europe, sea)"),
+    region: str = typer.Option(
+        "europe", "--region", "-r", help="Region (americas, asia, europe, sea)"
+    ),
     platform: str = typer.Option("euw1", "--platform", "-p", help="Platform (euw1, na1, kr, etc.)"),
 ):
     """Add a player to track."""
@@ -73,12 +80,67 @@ def add_player(
         async with get_async_session() as session:
             service = PlayerService(session)
             try:
+                # Step 1: Add player to database
                 player = await service.add_player(game_name, tag_line, region_enum, platform_enum)
                 console.print(f"[bold green]✓[/bold green] Added player: {player.riot_id}")
                 console.print(f"  PUUID: {player.puuid}")
                 console.print(f"  Region: {player.region}")
+
+                # Step 2: Backfill historical matches
+                console.print("\n[bold cyan]Fetching match history...[/bold cyan]")
+
+                backfill_service = BackfillService(session)
+
+                # Use rich progress bar
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task("Loading matches...", total=None)
+
+                    # Progress callback to update the bar
+                    def update_progress(current: int, total: int):
+                        if progress.tasks[task].total is None:
+                            progress.update(task, total=total)
+                        progress.update(
+                            task,
+                            completed=current,
+                            description=f"Loading matches ({current}/{total})",
+                        )
+
+                    saved_count = await backfill_service.backfill_player_history(
+                        player=player,
+                        region=region_enum,
+                        progress_callback=update_progress,
+                    )
+
+                console.print(f"\n[bold green]✓[/bold green] Backfill complete!")
+                console.print(f"  Total matches saved: {saved_count}")
+
+                # Step 3: Update last_match_id to prevent re-processing
+                if saved_count > 0:
+                    # Refresh player to get the latest match from database
+                    result = await session.execute(
+                        select(MatchParticipant.match_id)
+                        .where(MatchParticipant.puuid == player.puuid)
+                        .order_by(desc(MatchParticipant.game_creation))
+                        .limit(1)
+                    )
+                    latest_match_id = result.scalar_one_or_none()
+
+                    if latest_match_id:
+                        await service.update_last_polled(player, latest_match_id)
+                        console.print(f"  Set last match ID to prevent re-polling")
+
             except ValueError as e:
                 console.print(f"[bold red]Error:[/bold red] {e}")
+                raise typer.Exit(1)
+            except Exception as e:
+                console.print(f"[bold red]Error during backfill:[/bold red] {e}")
+                logger.exception("Backfill failed")
                 raise typer.Exit(1)
 
     run_async(_add())
@@ -211,7 +273,9 @@ def poll_now(
 
         if riot_id:
             if "#" not in riot_id:
-                console.print("[bold red]Error:[/bold red] Riot ID must be in format GameName#TagLine")
+                console.print(
+                    "[bold red]Error:[/bold red] Riot ID must be in format GameName#TagLine"
+                )
                 raise typer.Exit(1)
 
             game_name, tag_line = riot_id.rsplit("#", 1)
@@ -247,11 +311,18 @@ def config():
     table.add_column("Value", style="green")
 
     table.add_row("Database URL", settings.database_url[:50] + "...")
-    table.add_row("Discord Webhook", settings.discord_webhook_url[:50] + "..." if len(settings.discord_webhook_url) > 50 else settings.discord_webhook_url)
+    table.add_row(
+        "Discord Webhook",
+        settings.discord_webhook_url[:50] + "..."
+        if len(settings.discord_webhook_url) > 50
+        else settings.discord_webhook_url,
+    )
     table.add_row("Polling Interval", f"{settings.polling_interval_seconds}s")
     table.add_row("Log Level", settings.log_level)
     table.add_row("Default Region", settings.default_region)
-    table.add_row("Rate Limit", f"{settings.rate_limit_requests} / {settings.rate_limit_window_seconds}s")
+    table.add_row(
+        "Rate Limit", f"{settings.rate_limit_requests} / {settings.rate_limit_window_seconds}s"
+    )
     table.add_row("Invalid Responses Dir", str(settings.invalid_responses_dir))
     table.add_row("Achievements Config", str(settings.achievements_config_path))
 

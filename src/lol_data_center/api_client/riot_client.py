@@ -1,5 +1,6 @@
 """Async Riot API client with rate limiting and validation."""
 
+import asyncio
 from enum import Enum
 from typing import Any
 
@@ -153,59 +154,69 @@ class RiotApiClient:
         Raises:
             RiotApiError: If the API returns an error
         """
-        # Wait for rate limit
-        await self._rate_limiter.acquire()
-
         url = self._build_url(routing, endpoint)
         session = await self._get_session()
 
-        logger.debug(
-            "Making Riot API request",
-            url=url,
-            method=method,
-            params=params,
-        )
+        acquired = False
+        attempt = 0
 
-        async with session.request(method, url, params=params) as response:
-            response_text = await response.text()
+        while True:
+            if not acquired:
+                # Wait for rate limit only on first attempt; retries follow Riot's Retry-After
+                await self._rate_limiter.acquire()
+                acquired = True
 
-            if response.status == 429:
-                # Rate limited by Riot - this shouldn't happen with our limiter
-                # but handle it gracefully
-                retry_after = int(response.headers.get("Retry-After", 120))
-                logger.warning(
-                    "Rate limited by Riot API",
-                    retry_after=retry_after,
-                    url=url,
-                )
-                raise RiotApiError(429, f"Rate limited, retry after {retry_after}s", url)
+            logger.debug(
+                "Making Riot API request",
+                url=url,
+                method=method,
+                params=params,
+                attempt=attempt,
+            )
 
-            if response.status == 404:
-                raise RiotApiError(404, "Not found", url)
+            async with session.request(method, url, params=params) as response:
+                response_text = await response.text()
 
-            if response.status != 200:
-                logger.error(
-                    "Riot API error",
-                    status_code=response.status,
-                    url=url,
-                    response=response_text[:500],
-                )
-                raise RiotApiError(response.status, response_text, url)
+                if response.status == 429:
+                    # Riot says too many requests; respect Retry-After then retry
+                    retry_after = int(response.headers.get("Retry-After", 120))
+                    logger.warning(
+                        "Rate limited by Riot API; retrying after delay",
+                        retry_after=retry_after,
+                        url=url,
+                        attempt=attempt,
+                    )
+                    attempt += 1
+                    await asyncio.sleep(retry_after)
+                    # Retry without getting another token from our limiter
+                    continue
 
-            try:
-                return await response.json()
-            except Exception as e:
-                logger.error(
-                    "Failed to parse JSON response",
-                    url=url,
-                    error=str(e),
-                    response=response_text[:500],
-                )
-                raise RiotApiError(
-                    response.status,
-                    f"Invalid JSON response: {e}",
-                    url,
-                ) from e
+                if response.status == 404:
+                    raise RiotApiError(404, "Not found", url)
+
+                if response.status != 200:
+                    logger.error(
+                        "Riot API error",
+                        status_code=response.status,
+                        url=url,
+                        response=response_text[:500],
+                    )
+                    raise RiotApiError(response.status, response_text, url)
+
+                try:
+                    return await response.json()
+                except Exception as e:
+                    logger.error(
+                        "Failed to parse JSON response",
+                        url=url,
+                        error=str(e),
+                        response=response_text[:500],
+                    )
+                    raise RiotApiError(
+                        response.status,
+                        f"Invalid JSON response: {e}",
+                        url,
+                    ) from e
 
     # Account-V1 endpoints
 
@@ -334,6 +345,85 @@ class RiotApiClient:
             )
 
         return data
+
+    async def fetch_all_match_ids(
+        self,
+        puuid: str,
+        region: Region = Region.EUROPE,
+        queue: int | None = None,
+        match_type: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> list[str]:
+        """Fetch all available match IDs for a player using pagination.
+
+        This method automatically handles pagination by making multiple requests
+        with incrementing start indices until all matches are retrieved.
+
+        Args:
+            puuid: Player Universal Unique Identifier
+            region: Regional routing value
+            queue: Queue ID filter
+            match_type: Match type filter (ranked, normal, etc.)
+            start_time: Start time filter (epoch seconds)
+            end_time: End time filter (epoch seconds)
+
+        Returns:
+            Complete list of all match IDs for the player
+        """
+        all_match_ids: list[str] = []
+        start = 0
+        page_size = 100  # Use maximum allowed by Riot API
+
+        logger.info(
+            "Starting match ID pagination",
+            puuid=puuid,
+            region=region.value,
+        )
+
+        while True:
+            # Fetch page
+            match_ids = await self.get_match_ids(
+                puuid=puuid,
+                region=region,
+                start=start,
+                count=page_size,
+                queue=queue,
+                match_type=match_type,
+                start_time=start_time,
+                end_time=end_time,
+            )
+
+            # No more matches
+            if not match_ids:
+                logger.info(
+                    "Pagination complete - no more matches",
+                    puuid=puuid,
+                    total_matches=len(all_match_ids),
+                )
+                break
+
+            all_match_ids.extend(match_ids)
+
+            logger.debug(
+                "Fetched match ID page",
+                page_start=start,
+                page_size=len(match_ids),
+                total_so_far=len(all_match_ids),
+            )
+
+            # Fewer results than requested = last page
+            if len(match_ids) < page_size:
+                logger.info(
+                    "Pagination complete - last page",
+                    puuid=puuid,
+                    total_matches=len(all_match_ids),
+                )
+                break
+
+            start += len(match_ids)
+
+        return all_match_ids
 
     async def get_match(
         self,

@@ -1,0 +1,180 @@
+"""Tests for RiotApiClient."""
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from lol_data_center.api_client.riot_client import Region, RiotApiClient
+
+
+class TestFetchAllMatchIds:
+    """Tests for RiotApiClient.fetch_all_match_ids method."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_single_page(self):
+        """Test fetching all match IDs when results fit in one page."""
+        client = RiotApiClient(api_key="test-key")
+
+        # Mock get_match_ids to return less than page size
+        match_ids = [f"EUW1_MATCH_{i}" for i in range(50)]
+        client.get_match_ids = AsyncMock(return_value=match_ids)
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.EUROPE,
+        )
+
+        assert result == match_ids
+        assert len(result) == 50
+        # Should only call once since we got less than 100 results
+        client.get_match_ids.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_multiple_pages(self):
+        """Test fetching all match IDs across multiple pages."""
+        client = RiotApiClient(api_key="test-key")
+
+        # Mock get_match_ids to return multiple pages
+        page_1 = [f"EUW1_MATCH_{i}" for i in range(100)]
+        page_2 = [f"EUW1_MATCH_{i}" for i in range(100, 200)]
+        page_3 = [f"EUW1_MATCH_{i}" for i in range(200, 250)]
+
+        client.get_match_ids = AsyncMock(side_effect=[page_1, page_2, page_3])
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.EUROPE,
+        )
+
+        assert len(result) == 250
+        assert result == page_1 + page_2 + page_3
+        # Should call 3 times
+        assert client.get_match_ids.call_count == 3
+
+        # Verify pagination parameters
+        calls = client.get_match_ids.call_args_list
+        assert calls[0].kwargs["start"] == 0
+        assert calls[0].kwargs["count"] == 100
+        assert calls[1].kwargs["start"] == 100
+        assert calls[1].kwargs["count"] == 100
+        assert calls[2].kwargs["start"] == 200
+        assert calls[2].kwargs["count"] == 100
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_empty_result(self):
+        """Test fetching all match IDs when player has no matches."""
+        client = RiotApiClient(api_key="test-key")
+
+        # Mock get_match_ids to return empty list
+        client.get_match_ids = AsyncMock(return_value=[])
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.EUROPE,
+        )
+
+        assert result == []
+        client.get_match_ids.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_exact_page_boundary(self):
+        """Test fetching when results are exactly at page boundary (100)."""
+        client = RiotApiClient(api_key="test-key")
+
+        # First call returns exactly 100, second returns empty
+        page_1 = [f"EUW1_MATCH_{i}" for i in range(100)]
+
+        client.get_match_ids = AsyncMock(side_effect=[page_1, []])
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.EUROPE,
+        )
+
+        assert len(result) == 100
+        assert result == page_1
+        # Should call twice (second call gets empty, stops)
+        assert client.get_match_ids.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_with_filters(self):
+        """Test fetching all match IDs with optional filters."""
+        client = RiotApiClient(api_key="test-key")
+
+        match_ids = [f"EUW1_MATCH_{i}" for i in range(30)]
+        client.get_match_ids = AsyncMock(return_value=match_ids)
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.EUROPE,
+            queue=420,  # Ranked Solo/Duo
+            match_type="ranked",
+            start_time=1704067200,
+            end_time=1704153600,
+        )
+
+        assert result == match_ids
+
+        # Verify filters were passed through
+        call_kwargs = client.get_match_ids.call_args.kwargs
+        assert call_kwargs["queue"] == 420
+        assert call_kwargs["match_type"] == "ranked"
+        assert call_kwargs["start_time"] == 1704067200
+        assert call_kwargs["end_time"] == 1704153600
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_large_history(self):
+        """Test fetching all match IDs for player with large match history."""
+        client = RiotApiClient(api_key="test-key")
+
+        # Simulate 10 full pages + 1 partial page (1050 matches total)
+        pages = []
+        for i in range(10):
+            pages.append([f"EUW1_MATCH_{j}" for j in range(i * 100, (i + 1) * 100)])
+        pages.append([f"EUW1_MATCH_{j}" for j in range(1000, 1050)])
+
+        client.get_match_ids = AsyncMock(side_effect=pages)
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.EUROPE,
+        )
+
+        assert len(result) == 1050
+        assert client.get_match_ids.call_count == 11
+
+        # Verify last call
+        last_call = client.get_match_ids.call_args_list[-1]
+        assert last_call.kwargs["start"] == 1000
+        assert last_call.kwargs["count"] == 100
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_match_ids_pagination_consistency(self):
+        """Test that pagination maintains correct start indices."""
+        client = RiotApiClient(api_key="test-key")
+
+        # 3 pages: 100, 100, 47
+        pages = [
+            [f"MATCH_{i}" for i in range(100)],
+            [f"MATCH_{i}" for i in range(100, 200)],
+            [f"MATCH_{i}" for i in range(200, 247)],
+        ]
+
+        client.get_match_ids = AsyncMock(side_effect=pages)
+
+        result = await client.fetch_all_match_ids(
+            puuid="test-puuid",
+            region=Region.ASIA,
+        )
+
+        assert len(result) == 247
+
+        # Verify all calls had correct parameters
+        calls = client.get_match_ids.call_args_list
+        assert len(calls) == 3
+
+        assert calls[0].kwargs["puuid"] == "test-puuid"
+        assert calls[0].kwargs["region"] == Region.ASIA
+        assert calls[0].kwargs["start"] == 0
+
+        assert calls[1].kwargs["start"] == 100
+        assert calls[2].kwargs["start"] == 200

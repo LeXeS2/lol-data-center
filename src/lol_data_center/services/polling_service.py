@@ -171,6 +171,15 @@ class PollingService:
                 # Fetch match details
                 match_data = await self._api_client.get_match(match_id, region)
 
+                # Filter: process only CLASSIC game mode
+                if match_data.info.game_mode != "CLASSIC":
+                    logger.debug(
+                        "Skipping non-CLASSIC game mode",
+                        match_id=match_id,
+                        game_mode=match_data.info.game_mode,
+                    )
+                    continue
+
                 # Save match to database
                 await match_service.save_match(match_data)
 

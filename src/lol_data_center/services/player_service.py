@@ -86,8 +86,8 @@ class PlayerService:
             game_name=account.game_name,
             tag_line=account.tag_line,
             region=region.value,
-            summoner_id=summoner.id,
-            account_id=summoner.account_id,
+            summoner_id=summoner.id,  # May be None if API no longer provides it
+            account_id=summoner.account_id,  # May be None if API no longer provides it
             profile_icon_id=summoner.profile_icon_id,
             summoner_level=summoner.summoner_level,
             polling_enabled=True,

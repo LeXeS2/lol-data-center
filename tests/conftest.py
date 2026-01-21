@@ -74,8 +74,8 @@ async def sample_player(async_session: AsyncSession) -> TrackedPlayer:
         game_name="TestPlayer",
         tag_line="EUW",
         region="europe",
-        summoner_id="summoner-id-123",
-        account_id="account-id-123",
+        summoner_id=None,  # No longer returned by API
+        account_id=None,  # No longer returned by API
         profile_icon_id=1,
         summoner_level=100,
         polling_enabled=True,
@@ -118,10 +118,10 @@ def sample_account_dto() -> AccountDto:
 def sample_summoner_dto() -> SummonerDto:
     """Create a sample SummonerDto."""
     return SummonerDto(
-        accountId="account-id-123",
-        profileIconId=1,
-        revisionDate=1704067200000,
-        id="summoner-id-123",
+        accountId=None,  # No longer returned by API
+        profileIconId=123,
+        revisionDate=1234567890,
+        id=None,  # No longer returned by API
         puuid="test-puuid-12345",
         summonerLevel=100,
     )
@@ -133,7 +133,7 @@ def sample_participant_dto() -> ParticipantDto:
     return ParticipantDto(
         puuid="test-puuid-12345",
         summonerName="TestPlayer",
-        summonerId="summoner-id-123",
+        summonerId=None,  # No longer returned by API
         riotIdGameName="TestPlayer",
         riotIdTagline="EUW",
         profileIcon=1,
@@ -209,7 +209,7 @@ def sample_match_dto(sample_participant_dto: ParticipantDto) -> MatchDto:
         p = ParticipantDto(
             puuid=f"other-puuid-{i}",
             summonerName=f"Player{i}",
-            summonerId=f"summoner-{i}",
+            summonerId=None,  # No longer returned by API
             riotIdGameName=f"Player{i}",
             riotIdTagline="EUW",
             profileIcon=1,

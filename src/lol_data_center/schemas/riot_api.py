@@ -21,12 +21,15 @@ class AccountDto(BaseModel):
 
 
 class SummonerDto(BaseModel):
-    """Summoner information from summoner-v4 API."""
+    """Summoner information from summoner-v4 API.
+    
+    Note: As of recent API changes, accountId and id are no longer returned.
+    """
 
-    account_id: str = Field(..., alias="accountId")
+    account_id: Optional[str] = Field(None, alias="accountId")
     profile_icon_id: int = Field(..., alias="profileIconId")
     revision_date: int = Field(..., alias="revisionDate")
-    id: str = Field(..., description="Encrypted summoner ID")
+    id: Optional[str] = Field(None, description="Encrypted summoner ID (deprecated)")
     puuid: str
     summoner_level: int = Field(..., alias="summonerLevel")
 
@@ -43,7 +46,7 @@ class ParticipantDto(BaseModel):
     # Player identification
     puuid: str
     summoner_name: str = Field(..., alias="summonerName")
-    summoner_id: str = Field(..., alias="summonerId")
+    summoner_id: Optional[str] = Field(None, alias="summonerId")
     riot_id_game_name: Optional[str] = Field(None, alias="riotIdGameName")
     riot_id_tagline: Optional[str] = Field(None, alias="riotIdTagline")
     profile_icon: int = Field(..., alias="profileIcon")

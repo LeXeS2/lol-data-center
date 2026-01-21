@@ -51,7 +51,7 @@ class TestParticipantDto:
         participant = ParticipantDto(
             puuid="test",
             summonerName="Test",
-            summonerId="test-id",
+            summonerId=None,  # No longer returned by API
             profileIcon=1,
             summonerLevel=30,
             championId=1,
@@ -82,7 +82,7 @@ class TestParticipantDto:
         participant = ParticipantDto(
             puuid="test",
             summonerName="Test",
-            summonerId="test-id",
+            summonerId=None,  # No longer returned by API
             profileIcon=1,
             summonerLevel=30,
             championId=1,
@@ -113,7 +113,7 @@ class TestParticipantDto:
         data = {
             "puuid": "test",
             "summonerName": "Test",
-            "summonerId": "test-id",
+            "summonerId": None,  # No longer returned by API
             "profileIcon": 1,
             "summonerLevel": 30,
             "championId": 1,

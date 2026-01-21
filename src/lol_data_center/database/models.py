@@ -119,7 +119,7 @@ class MatchParticipant(Base):
 
     # Player info
     summoner_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    summoner_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    summoner_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     riot_id_game_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     riot_id_tagline: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     profile_icon: Mapped[int] = mapped_column(Integer, nullable=False)
