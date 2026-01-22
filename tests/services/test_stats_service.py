@@ -387,7 +387,7 @@ class TestStatsService:
             participants.append(
                 MatchParticipant(
                     match_db_id=i + 1,
-                    match_id=f"TEST_MATCH_{i+1}",
+                    match_id=f"TEST_MATCH_{i + 1}",
                     puuid=sample_player.puuid,
                     player_id=sample_player.id,
                     game_creation=base_time - timedelta(hours=i),
@@ -814,7 +814,7 @@ class TestStatsService:
         for i in range(3):
             participant = MatchParticipant(
                 match_db_id=i + 1,
-                match_id=f"TEST_MATCH_{i+1}",
+                match_id=f"TEST_MATCH_{i + 1}",
                 puuid=sample_player.puuid,
                 player_id=sample_player.id,
                 game_creation=base_time - timedelta(hours=i),
@@ -907,7 +907,7 @@ class TestStatsService:
         for i in range(3):
             participant = MatchParticipant(
                 match_db_id=i + 1,
-                match_id=f"TEST_MATCH_{i+1}",
+                match_id=f"TEST_MATCH_{i + 1}",
                 puuid=sample_player.puuid,
                 player_id=sample_player.id,
                 game_creation=base_time - timedelta(hours=i),
@@ -999,7 +999,7 @@ class TestStatsService:
         for i in range(2):
             participant = MatchParticipant(
                 match_db_id=i + 1,
-                match_id=f"TEST_MATCH_{i+1}",
+                match_id=f"TEST_MATCH_{i + 1}",
                 puuid=sample_player.puuid,
                 player_id=sample_player.id,
                 game_creation=base_time - timedelta(hours=i),

@@ -126,6 +126,9 @@ The Discord bot enables interactive slash commands for managing players directly
    - `/add-player` - Add a player to track (includes automatic match history backfill with progress notifications)
    - `/remove-player` - Remove a player from tracking
    - `/list-players` - List all tracked players
+   - `/stats-by-champion` - View aggregated statistics grouped by champion (avg, min, max, stddev)
+   - `/stats-by-role` - View aggregated statistics grouped by role (avg, min, max, stddev)
+   - `/recent-game` - View detailed stats for the n-th most recent game
 
 Note: The Discord bot is optional. The application will run without it if `DISCORD_BOT_TOKEN` is not configured.
 

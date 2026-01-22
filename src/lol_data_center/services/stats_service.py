@@ -1,9 +1,9 @@
 """Statistics aggregation service for player performance data."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.database.models import MatchParticipant
@@ -369,11 +369,11 @@ class StatsService:
             win_rate=win_rate,
         )
 
-    def _calculate_stddev(self, values: list[int | float], mean: float) -> float:
+    def _calculate_stddev(self, values: Sequence[int | float], mean: float) -> float:
         """Calculate sample standard deviation.
 
         Args:
-            values: List of values
+            values: Sequence of values
             mean: Pre-calculated mean
 
         Returns:
@@ -383,4 +383,4 @@ class StatsService:
             return 0.0
 
         variance = sum((x - mean) ** 2 for x in values) / (len(values) - 1)
-        return variance**0.5
+        return float(variance**0.5)
