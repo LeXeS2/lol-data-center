@@ -1,7 +1,6 @@
 """Achievement condition implementations."""
 
 from abc import ABC, abstractmethod
-from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +21,7 @@ logger = get_logger(__name__)
 class BaseCondition(ABC):
     """Base class for achievement conditions."""
 
-    def __init__(self, definition: AchievementDefinition):
+    def __init__(self, definition: AchievementDefinition) -> None:
         """Initialize with achievement definition.
 
         Args:

@@ -19,7 +19,7 @@ class PlayerService:
         self,
         session: AsyncSession,
         api_client: RiotApiClient | None = None,
-    ):
+    ) -> None:
         """Initialize the player service.
 
         Args:
@@ -154,7 +154,7 @@ class PlayerService:
             List of active TrackedPlayer instances
         """
         result = await self._session.execute(
-            select(TrackedPlayer).where(TrackedPlayer.polling_enabled == True)
+            select(TrackedPlayer).where(TrackedPlayer.polling_enabled.is_(True))
         )
         return list(result.scalars().all())
 
@@ -202,7 +202,7 @@ class PlayerService:
             player: The player to update
             last_match_id: Optional last match ID to update
         """
-        player.last_polled_at = datetime.utcnow()
+        player.last_polled_at = datetime.now()
         if last_match_id:
             player.last_match_id = last_match_id
         await self._session.commit()

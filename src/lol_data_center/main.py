@@ -2,7 +2,6 @@
 
 import asyncio
 import signal
-from typing import Any
 
 from lol_data_center.achievements.evaluator import AchievementEvaluator
 from lol_data_center.database.engine import close_db, init_db
@@ -33,7 +32,7 @@ async def main() -> None:
     # Setup shutdown handling
     shutdown_event = asyncio.Event()
 
-    def handle_shutdown(sig: Any) -> None:
+    def handle_shutdown(sig: signal.Signals | int) -> None:
         logger.info("Received shutdown signal", signal=sig)
         shutdown_event.set()
 

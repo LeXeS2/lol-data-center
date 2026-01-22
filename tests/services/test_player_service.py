@@ -1,16 +1,28 @@
 """Tests for PlayerService."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
-from unittest.mock import AsyncMock
 
 from lol_data_center.services.player_service import PlayerService
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lol_data_center.database.models import TrackedPlayer
 
 
 class TestPlayerService:
     """Tests for PlayerService."""
 
     @pytest.mark.asyncio
-    async def test_get_player_by_puuid(self, async_session, sample_player):
+    async def test_get_player_by_puuid(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
         """Test getting a player by PUUID."""
         service = PlayerService(async_session)
 
@@ -21,7 +33,10 @@ class TestPlayerService:
         assert player.riot_id == f"{sample_player.game_name}#{sample_player.tag_line}"
 
     @pytest.mark.asyncio
-    async def test_get_player_by_puuid_not_found(self, async_session):
+    async def test_get_player_by_puuid_not_found(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test getting a player by PUUID when not found."""
         service = PlayerService(async_session)
 
@@ -30,7 +45,11 @@ class TestPlayerService:
         assert player is None
 
     @pytest.mark.asyncio
-    async def test_get_player_by_riot_id(self, async_session, sample_player):
+    async def test_get_player_by_riot_id(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
         """Test getting a player by Riot ID."""
         service = PlayerService(async_session)
 
@@ -43,7 +62,11 @@ class TestPlayerService:
         assert player.id == sample_player.id
 
     @pytest.mark.asyncio
-    async def test_get_all_active_players(self, async_session, sample_player):
+    async def test_get_all_active_players(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
         """Test getting all active players."""
         service = PlayerService(async_session)
 
@@ -53,7 +76,11 @@ class TestPlayerService:
         assert players[0].puuid == sample_player.puuid
 
     @pytest.mark.asyncio
-    async def test_toggle_polling(self, async_session, sample_player):
+    async def test_toggle_polling(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
         """Test toggling polling for a player."""
         service = PlayerService(async_session)
 

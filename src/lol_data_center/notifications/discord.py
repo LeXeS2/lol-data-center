@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class DiscordNotifier:
     """Sends notifications to Discord via webhooks."""
 
-    def __init__(self, webhook_url: str | None = None):
+    def __init__(self, webhook_url: str | None = None) -> None:
         """Initialize the Discord notifier.
 
         Args:

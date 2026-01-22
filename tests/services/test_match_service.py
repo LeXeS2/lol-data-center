@@ -1,16 +1,27 @@
 """Tests for MatchService."""
 
-import pytest
-from unittest.mock import AsyncMock
+from __future__ import annotations
 
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+import pytest
+
+from lol_data_center.database.models import Match, MatchParticipant
 from lol_data_center.services.match_service import MatchService
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lol_data_center.database.models import TrackedPlayer
+    from lol_data_center.schemas.riot_api import MatchDto, ParticipantDto
 
 
 class TestMatchService:
     """Tests for MatchService."""
 
     @pytest.mark.asyncio
-    async def test_match_exists_false(self, async_session):
+    async def test_match_exists_false(self, async_session: AsyncSession) -> None:
         """Test match_exists returns False for non-existent match."""
         service = MatchService(async_session)
 
@@ -19,10 +30,13 @@ class TestMatchService:
         assert exists is False
 
     @pytest.mark.asyncio
-    async def test_save_match(self, async_session, sample_match_dto):
+    async def test_save_match(
+        self,
+        async_session: AsyncSession,
+        sample_match_dto: MatchDto,
+    ) -> None:
         """Test saving a match to the database."""
         from sqlalchemy import select
-        from lol_data_center.database.models import MatchParticipant
 
         service = MatchService(async_session)
 
@@ -39,7 +53,11 @@ class TestMatchService:
         assert len(participants) == 10
 
     @pytest.mark.asyncio
-    async def test_save_match_idempotent(self, async_session, sample_match_dto):
+    async def test_save_match_idempotent(
+        self,
+        async_session: AsyncSession,
+        sample_match_dto: MatchDto,
+    ) -> None:
         """Test that saving the same match twice is idempotent."""
         service = MatchService(async_session)
 
@@ -52,10 +70,10 @@ class TestMatchService:
     @pytest.mark.asyncio
     async def test_update_player_records(
         self,
-        async_session,
-        sample_player,
-        sample_participant_dto,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_participant_dto: ParticipantDto,
+    ) -> None:
         """Test updating player records."""
         service = MatchService(async_session)
 
@@ -72,12 +90,81 @@ class TestMatchService:
         assert broken_records["kills"] == (15, 20)  # Old, new
 
     @pytest.mark.asyncio
+    async def test_update_timeline_data(
+        self,
+        async_session: AsyncSession,
+        sample_match_dto: MatchDto,
+    ) -> None:
+        """Test updating timeline data for a match."""
+        service = MatchService(async_session)
+
+        # Save a match first
+        match = await service.save_match(sample_match_dto)
+
+        # Update with timeline data
+        timeline_data = {
+            "frameInterval": 60000,
+            "frames": [
+                {"timestamp": 0, "events": []},
+                {"timestamp": 60000, "events": [{"type": "CHAMPION_KILL"}]},
+            ],
+        }
+
+        updated_match = await service.update_timeline_data(match.match_id, timeline_data)
+
+        assert updated_match is not None
+        assert updated_match.timeline_data == timeline_data
+
+    @pytest.mark.asyncio
+    async def test_update_timeline_data_match_not_found(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
+        """Test updating timeline data for non-existent match returns None."""
+        service = MatchService(async_session)
+
+        result = await service.update_timeline_data("NONEXISTENT_123", {"frames": []})
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_timeline_data(
+        self,
+        async_session: AsyncSession,
+        sample_match_dto: MatchDto,
+    ) -> None:
+        """Test retrieving timeline data for a match."""
+        service = MatchService(async_session)
+
+        # Save a match with timeline data
+        match = await service.save_match(sample_match_dto)
+        timeline_data = {"frames": [{"timestamp": 0}]}
+        await service.update_timeline_data(match.match_id, timeline_data)
+
+        # Retrieve timeline data
+        retrieved_timeline = await service.get_timeline_data(match.match_id)
+
+        assert retrieved_timeline == timeline_data
+
+    @pytest.mark.asyncio
+    async def test_get_timeline_data_not_found(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
+        """Test retrieving timeline data for non-existent match returns None."""
+        service = MatchService(async_session)
+
+        timeline = await service.get_timeline_data("NONEXISTENT_123")
+
+        assert timeline is None
+
+    @pytest.mark.asyncio
     async def test_get_recent_matches_for_player(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+    ) -> None:
         """Test getting recent matches for a player."""
         service = MatchService(async_session)
 
@@ -93,31 +180,32 @@ class TestMatchService:
 
 class TestPercentileCalculation:
     """Tests for z-score based percentile calculation."""
-    
+
     # Tolerance for statistical tests - due to the nature of z-score calculations,
     # we allow a 10% range around the expected value to account for small sample sizes
     PERCENTILE_TOLERANCE = 10.0
 
     @pytest.mark.asyncio
-    async def test_percentile_with_no_data(self, async_session):
+    async def test_percentile_with_no_data(self, async_session: AsyncSession) -> None:
         """Test percentile calculation with no data returns 0."""
         service = MatchService(async_session)
-        
+
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
         )
-        
+
         assert percentile == 0.0
 
     @pytest.mark.asyncio
-    async def test_percentile_with_single_data_point(self, async_session):
+    async def test_percentile_with_single_data_point(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test percentile calculation with single data point returns 50th percentile."""
-        from lol_data_center.database.models import Match, MatchParticipant
-        from datetime import datetime
-        
+
         service = MatchService(async_session)
-        
+
         # Create a match with only one participant
         match = Match(
             match_id="SINGLE_TEST",
@@ -133,7 +221,7 @@ class TestPercentileCalculation:
         )
         async_session.add(match)
         await async_session.flush()
-        
+
         participant = MatchParticipant(
             match_db_id=match.id,
             match_id=match.match_id,
@@ -205,22 +293,23 @@ class TestPercentileCalculation:
         )
         async_session.add(participant)
         await async_session.commit()
-        
+
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
         )
-        
+
         assert percentile == 50.0
 
     @pytest.mark.asyncio
-    async def test_percentile_z_score_calculation(self, async_session):
+    async def test_percentile_z_score_calculation(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test percentile calculation using z-score with known distribution."""
-        from lol_data_center.database.models import Match, MatchParticipant
-        from datetime import datetime
-        
+
         service = MatchService(async_session)
-        
+
         # Create a match
         match = Match(
             match_id="TEST_123",
@@ -236,7 +325,7 @@ class TestPercentileCalculation:
         )
         async_session.add(match)
         await async_session.flush()
-        
+
         # Create participants with known kills distribution
         # Mean = 10, values: 5, 10, 15 (std dev will be calculated)
         kills_values = [5, 10, 15]
@@ -311,16 +400,20 @@ class TestPercentileCalculation:
                 summoner_level=100,
             )
             async_session.add(participant)
-        
+
         await async_session.commit()
-        
+
         # Test percentile for mean value (should be ~50th percentile)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
         )
-        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
-        
+        assert (
+            50.0 - self.PERCENTILE_TOLERANCE
+            <= percentile
+            <= 50.0 + self.PERCENTILE_TOLERANCE
+        )
+
         # Test percentile for high value (should be ~84th percentile for +1 std dev)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
@@ -329,13 +422,14 @@ class TestPercentileCalculation:
         assert percentile > 80.0
 
     @pytest.mark.asyncio
-    async def test_percentile_with_zero_std_dev(self, async_session):
+    async def test_percentile_with_zero_std_dev(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test percentile calculation when all values are the same (std dev = 0)."""
-        from lol_data_center.database.models import Match, MatchParticipant
-        from datetime import datetime
-        
+
         service = MatchService(async_session)
-        
+
         # Create a match
         match = Match(
             match_id="TEST_456",
@@ -351,7 +445,7 @@ class TestPercentileCalculation:
         )
         async_session.add(match)
         await async_session.flush()
-        
+
         # Create participants with identical kills (std dev = 0)
         for i in range(3):
             participant = MatchParticipant(
@@ -424,23 +518,23 @@ class TestPercentileCalculation:
                 summoner_level=100,
             )
             async_session.add(participant)
-        
+
         await async_session.commit()
-        
+
         # Test with value equal to mean (should return 50)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
         )
         assert percentile == 50.0
-        
+
         # Test with value above mean (should return 100)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=15.0,
         )
         assert percentile == 100.0
-        
+
         # Test with value below mean (should return 0)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
@@ -449,13 +543,14 @@ class TestPercentileCalculation:
         assert percentile == 0.0
 
     @pytest.mark.asyncio
-    async def test_percentile_with_champion_filter(self, async_session):
+    async def test_percentile_with_champion_filter(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test percentile calculation filtered by champion."""
-        from lol_data_center.database.models import Match, MatchParticipant
-        from datetime import datetime
-        
+
         service = MatchService(async_session)
-        
+
         # Create a match
         match = Match(
             match_id="TEST_789",
@@ -471,14 +566,14 @@ class TestPercentileCalculation:
         )
         async_session.add(match)
         await async_session.flush()
-        
+
         # Create participants with different champions
         # Champion 1: kills = 5, 10, 15 (mean = 10)
         # Champion 2: kills = 15, 20, 25 (mean = 20)
         for i in range(6):
             champion_id = 1 if i < 3 else 2
             kills = [5, 10, 15, 15, 20, 25][i]
-            
+
             participant = MatchParticipant(
                 match_db_id=match.id,
                 match_id=match.match_id,
@@ -549,17 +644,21 @@ class TestPercentileCalculation:
                 summoner_level=100,
             )
             async_session.add(participant)
-        
+
         await async_session.commit()
-        
+
         # Test percentile for champion 1 with value 10 (should be ~50th percentile)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
             champion_id=1,
         )
-        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
-        
+        assert (
+            50.0 - self.PERCENTILE_TOLERANCE
+            <= percentile
+            <= 50.0 + self.PERCENTILE_TOLERANCE
+        )
+
         # Test percentile for champion 2 with value 10 (should be very low)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
@@ -569,13 +668,14 @@ class TestPercentileCalculation:
         assert percentile < 10.0
 
     @pytest.mark.asyncio
-    async def test_percentile_with_role_filter(self, async_session):
+    async def test_percentile_with_role_filter(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test percentile calculation filtered by role."""
-        from lol_data_center.database.models import Match, MatchParticipant
-        from datetime import datetime
-        
+
         service = MatchService(async_session)
-        
+
         # Create a match
         match = Match(
             match_id="TEST_ABC",
@@ -591,14 +691,14 @@ class TestPercentileCalculation:
         )
         async_session.add(match)
         await async_session.flush()
-        
+
         # Create participants with different roles
         # MIDDLE: kills = 5, 10, 15 (mean = 10)
         # JUNGLE: kills = 15, 20, 25 (mean = 20)
         for i in range(6):
             role = "MIDDLE" if i < 3 else "JUNGLE"
             kills = [5, 10, 15, 15, 20, 25][i]
-            
+
             participant = MatchParticipant(
                 match_db_id=match.id,
                 match_id=match.match_id,
@@ -669,17 +769,21 @@ class TestPercentileCalculation:
                 summoner_level=100,
             )
             async_session.add(participant)
-        
+
         await async_session.commit()
-        
+
         # Test percentile for MIDDLE role with value 10 (should be ~50th percentile)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
             role="MIDDLE",
         )
-        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
-        
+        assert (
+            50.0 - self.PERCENTILE_TOLERANCE
+            <= percentile
+            <= 50.0 + self.PERCENTILE_TOLERANCE
+        )
+
         # Test percentile for JUNGLE role with value 10 (should be very low)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
@@ -689,13 +793,15 @@ class TestPercentileCalculation:
         assert percentile < 10.0
 
     @pytest.mark.asyncio
-    async def test_percentile_with_puuid_filter(self, async_session, sample_player):
+    async def test_percentile_with_puuid_filter(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
         """Test percentile calculation filtered by player PUUID."""
-        from lol_data_center.database.models import Match, MatchParticipant
-        from datetime import datetime
-        
+
         service = MatchService(async_session)
-        
+
         # Create participants - some for sample_player, some for others
         # Each participant needs to be in a separate match (or have unique puuid per match)
         # sample_player: kills = 5, 10, 15 (mean = 10)
@@ -703,7 +809,7 @@ class TestPercentileCalculation:
         for i in range(6):
             puuid = sample_player.puuid if i < 3 else f"other-puuid-{i}"
             kills = [5, 10, 15, 20, 25, 30][i]
-            
+
             # Create a separate match for each participant
             match = Match(
                 match_id=f"TEST_DEF_{i}",
@@ -719,7 +825,7 @@ class TestPercentileCalculation:
             )
             async_session.add(match)
             await async_session.flush()
-            
+
             participant = MatchParticipant(
                 match_db_id=match.id,
                 match_id=match.match_id,
@@ -790,17 +896,21 @@ class TestPercentileCalculation:
                 summoner_level=100,
             )
             async_session.add(participant)
-        
+
         await async_session.commit()
-        
+
         # Test percentile for sample_player with value 10 (should be ~50th percentile)
         percentile = await service.get_player_stats_percentile(
             stat_field="kills",
             value=10.0,
             puuid=sample_player.puuid,
         )
-        assert (50.0 - self.PERCENTILE_TOLERANCE) <= percentile <= (50.0 + self.PERCENTILE_TOLERANCE)
-        
+        assert (
+            50.0 - self.PERCENTILE_TOLERANCE
+            <= percentile
+            <= 50.0 + self.PERCENTILE_TOLERANCE
+        )
+
         # Test percentile for all players with value 10 (should be lower)
         percentile_all = await service.get_player_stats_percentile(
             stat_field="kills",

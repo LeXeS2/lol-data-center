@@ -6,9 +6,10 @@ Multiple listeners can subscribe to events like NewMatchEvent.
 
 import asyncio
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Generic, TypeVar
+from typing import Any, TypeVar
 
 from lol_data_center.logging_config import get_logger
 from lol_data_center.schemas.riot_api import MatchDto, ParticipantDto

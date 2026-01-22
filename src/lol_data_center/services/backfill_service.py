@@ -87,15 +87,41 @@ class BackfillService:
             # Check if match already exists
             if await self._match_service.match_exists(match_id):
                 logger.debug(
-                    "Match already exists, skipping",
+                    "Match already exists, loading from DB",
                     match_id=match_id,
                     progress=f"{i}/{total_matches}",
                 )
+
+                # Load match from database instead of querying Riot API
+                match_data = await self._match_service.get_match_dto(match_id)
+
+                if match_data is None:
+                    logger.error(
+                        "Match exists but failed to load from DB",
+                        match_id=match_id,
+                        progress=f"{i}/{total_matches}",
+                    )
+                    if progress_callback:
+                        progress_callback(i, total_matches)
+                    continue
+
+                # Check for BOT participants
+                if self._match_service.has_bot_participant(match_data):
+                    logger.debug(
+                        "Skipping match with BOT participant",
+                        match_id=match_id,
+                        progress=f"{i}/{total_matches}",
+                    )
+                    if progress_callback:
+                        progress_callback(i, total_matches)
+                    continue
+
+                # Match already exists, just update progress
                 if progress_callback:
                     progress_callback(i, total_matches)
                 continue
 
-            # Fetch full match data
+            # Fetch full match data from Riot API
             logger.debug(
                 "Fetching match details",
                 match_id=match_id,
@@ -111,6 +137,15 @@ class BackfillService:
                         "Skipping non-CLASSIC game mode",
                         match_id=match_id,
                         game_mode=match_data.info.game_mode,
+                        progress=f"{i}/{total_matches}",
+                    )
+                    continue
+
+                # Filter: Skip matches with BOT participants
+                if self._match_service.has_bot_participant(match_data):
+                    logger.debug(
+                        "Skipping match with BOT participant",
+                        match_id=match_id,
                         progress=f"{i}/{total_matches}",
                     )
                     continue

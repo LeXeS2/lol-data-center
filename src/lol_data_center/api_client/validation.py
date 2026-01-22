@@ -3,9 +3,10 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TypeVar
 
-from pydantic import BaseModel, ValidationError as PydanticValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 
 from lol_data_center.config import get_settings
 from lol_data_center.logging_config import get_logger
@@ -25,7 +26,7 @@ class ValidationError(Exception):
         url: str,
         response_body: str,
         original_error: Exception | None = None,
-    ):
+    ) -> None:
         super().__init__(message)
         self.endpoint = endpoint
         self.url = url
@@ -35,7 +36,7 @@ class ValidationError(Exception):
 
 async def validate_response(
     schema: type[T],
-    data: Any,
+    data: object,
     endpoint: str,
     url: str,
     status_code: int | None = None,
@@ -91,7 +92,7 @@ async def store_invalid_response(
     endpoint: str,
     url: str,
     status_code: int | None,
-    response_body: Any,
+    response_body: object,
     error_message: str,
 ) -> Path:
     """Store an invalid API response to a file for debugging.

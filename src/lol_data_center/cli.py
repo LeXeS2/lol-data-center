@@ -1,22 +1,24 @@
 """CLI application for LoL Data Center."""
 
+from __future__ import annotations
+
 import asyncio
-from typing import Optional
+from collections.abc import Coroutine
+from typing import Any, TypeVar
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session, init_db
-from lol_data_center.logging_config import configure_logging, get_logger
 from lol_data_center.database.models import MatchParticipant
+from lol_data_center.logging_config import configure_logging, get_logger
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
-
 
 app = typer.Typer(
     name="lol-data-center",
@@ -24,15 +26,16 @@ app = typer.Typer(
 )
 console = Console()
 logger = get_logger(__name__)
+T = TypeVar("T")
 
 
-def run_async(coro):
+def run_async(coro: Coroutine[Any, Any, T]) -> T:
     """Run an async function in the event loop."""
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
 @app.command()
-def run():
+def run() -> None:
     """Start the polling service and achievement evaluator."""
     from lol_data_center.main import main
 
@@ -52,7 +55,7 @@ def add_player(
         "europe", "--region", "-r", help="Region (americas, asia, europe, sea)"
     ),
     platform: str = typer.Option("euw1", "--platform", "-p", help="Platform (euw1, na1, kr, etc.)"),
-):
+) -> None:
     """Add a player to track."""
     configure_logging()
 
@@ -64,18 +67,18 @@ def add_player(
 
     try:
         region_enum = Region(region.lower())
-    except ValueError:
+    except ValueError as exc:
         console.print(f"[bold red]Error:[/bold red] Invalid region: {region}")
         console.print("Valid regions: americas, asia, europe, sea")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
     try:
         platform_enum = Platform(platform.lower())
-    except ValueError:
+    except ValueError as exc:
         console.print(f"[bold red]Error:[/bold red] Invalid platform: {platform}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
-    async def _add():
+    async def _add() -> None:
         await init_db()
         async with get_async_session() as session:
             service = PlayerService(session)
@@ -102,7 +105,7 @@ def add_player(
                     task = progress.add_task("Loading matches...", total=None)
 
                     # Progress callback to update the bar
-                    def update_progress(current: int, total: int):
+                    def update_progress(current: int, total: int) -> None:
                         if progress.tasks[task].total is None:
                             progress.update(task, total=total)
                         progress.update(
@@ -117,7 +120,7 @@ def add_player(
                         progress_callback=update_progress,
                     )
 
-                console.print(f"\n[bold green]✓[/bold green] Backfill complete!")
+                console.print("\n[bold green]✓[/bold green] Backfill complete!")
                 console.print(f"  Total matches saved: {saved_count}")
 
                 # Step 3: Update last_match_id to prevent re-processing
@@ -133,15 +136,15 @@ def add_player(
 
                     if latest_match_id:
                         await service.update_last_polled(player, latest_match_id)
-                        console.print(f"  Set last match ID to prevent re-polling")
+                        console.print("  Set last match ID to prevent re-polling")
 
             except ValueError as e:
                 console.print(f"[bold red]Error:[/bold red] {e}")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
             except Exception as e:
                 console.print(f"[bold red]Error during backfill:[/bold red] {e}")
                 logger.exception("Backfill failed")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from e
 
     run_async(_add())
 
@@ -149,7 +152,7 @@ def add_player(
 @app.command()
 def remove_player(
     riot_id: str = typer.Argument(..., help="Player Riot ID (GameName#TagLine)"),
-):
+) -> None:
     """Remove a player from tracking."""
     configure_logging()
 
@@ -159,7 +162,7 @@ def remove_player(
 
     game_name, tag_line = riot_id.rsplit("#", 1)
 
-    async def _remove():
+    async def _remove() -> None:
         async with get_async_session() as session:
             service = PlayerService(session)
             player = await service.get_player_by_riot_id(game_name, tag_line)
@@ -175,11 +178,11 @@ def remove_player(
 
 
 @app.command()
-def list_players():
+def list_players() -> None:
     """List all tracked players."""
     configure_logging()
 
-    async def _list():
+    async def _list() -> None:
         async with get_async_session() as session:
             service = PlayerService(session)
             players = await service.get_all_players()
@@ -219,7 +222,7 @@ def list_players():
 def toggle_polling(
     riot_id: str = typer.Argument(..., help="Player Riot ID (GameName#TagLine)"),
     enable: bool = typer.Option(True, "--enable/--disable", help="Enable or disable polling"),
-):
+) -> None:
     """Enable or disable polling for a player."""
     configure_logging()
 
@@ -229,7 +232,7 @@ def toggle_polling(
 
     game_name, tag_line = riot_id.rsplit("#", 1)
 
-    async def _toggle():
+    async def _toggle() -> None:
         async with get_async_session() as session:
             service = PlayerService(session)
             player = await service.get_player_by_riot_id(game_name, tag_line)
@@ -246,12 +249,12 @@ def toggle_polling(
 
 
 @app.command()
-def migrate():
+def migrate() -> None:
     """Run database migrations."""
     configure_logging()
     console.print("[bold]Running database migrations...[/bold]")
 
-    async def _migrate():
+    async def _migrate() -> None:
         await init_db()
         console.print("[bold green]✓[/bold green] Database initialized")
 
@@ -260,14 +263,14 @@ def migrate():
 
 @app.command()
 def poll_now(
-    riot_id: Optional[str] = typer.Argument(None, help="Player Riot ID to poll (optional)"),
-):
+    riot_id: str | None = typer.Argument(None, help="Player Riot ID to poll (optional)"),
+) -> None:
     """Manually trigger polling for players."""
     from lol_data_center.services.polling_service import PollingService
 
     configure_logging()
 
-    async def _poll():
+    async def _poll() -> None:
         await init_db()
         service = PollingService()
 
@@ -302,7 +305,7 @@ def poll_now(
 
 
 @app.command()
-def config():
+def config() -> None:
     """Show current configuration."""
     settings = get_settings()
 

@@ -32,7 +32,7 @@ def load_achievements(config_path: Path | None = None) -> list[AchievementDefini
         return []
 
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         config = AchievementsConfig.model_validate(data)

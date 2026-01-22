@@ -1,28 +1,36 @@
 """Tests for Discord bot commands."""
 
-from unittest.mock import AsyncMock, MagicMock
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, patch
 
 import discord
 import pytest
 
 from lol_data_center.notifications.discord_bot import DiscordBot
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 
 class TestDiscordBot:
     """Tests for DiscordBot."""
 
     @pytest.mark.asyncio
-    async def test_bot_initialization_without_token(self):
+    async def test_bot_initialization_without_token(self) -> None:
         """Test that bot doesn't start without token."""
-        bot = DiscordBot(token="")
+        with patch("lol_data_center.notifications.discord_bot.get_settings") as mock_settings:
+            mock_settings.return_value.discord_bot_token = None
+            bot = DiscordBot(token=None)
 
-        await bot.start()
+            await bot.start()
 
-        # Bot should not be running without token
-        assert not bot.is_running
+            # Bot should not be running without token
+            assert not bot.is_running
 
     @pytest.mark.asyncio
-    async def test_bot_initialization_with_token(self):
+    async def test_bot_initialization_with_token(self) -> None:
         """Test bot initialization with token."""
         bot = DiscordBot(token="test-token")
 
@@ -30,10 +38,10 @@ class TestDiscordBot:
         assert not bot.is_running
 
     @pytest.mark.asyncio
-    async def test_bot_stop(self):
+    async def test_bot_stop(self) -> None:
         """Test bot stop method."""
         bot = DiscordBot(token="test-token")
-        
+
         # Mock the client
         mock_client = AsyncMock(spec=discord.Client)
         mock_client.close = AsyncMock()
@@ -50,22 +58,28 @@ class TestDiscordBotCommands:
     """Tests for Discord bot slash commands."""
 
     @pytest.mark.asyncio
-    async def test_add_player_command_invalid_riot_id(self, async_session):
+    async def test_add_player_command_invalid_riot_id(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test add-player command with invalid Riot ID format."""
         # This test verifies the command logic structure
         # Full integration testing would require mocking Discord interactions
-        
+
         # Test that Riot ID validation works
         riot_id = "InvalidFormat"  # Missing #TAG
-        
+
         # This would fail validation in the actual command
         assert "#" not in riot_id
 
     @pytest.mark.asyncio
-    async def test_add_player_command_valid_riot_id(self, async_session):
+    async def test_add_player_command_valid_riot_id(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
         """Test add-player command with valid Riot ID format."""
         riot_id = "TestPlayer#EUW"
-        
+
         # Verify Riot ID can be parsed
         assert "#" in riot_id
         game_name, tag_line = riot_id.rsplit("#", 1)
@@ -73,12 +87,12 @@ class TestDiscordBotCommands:
         assert tag_line == "EUW"
 
     @pytest.mark.asyncio
-    async def test_remove_player_command_validation(self):
+    async def test_remove_player_command_validation(self) -> None:
         """Test remove-player command Riot ID validation."""
         # Test invalid format
         riot_id_invalid = "InvalidFormat"
         assert "#" not in riot_id_invalid
-        
+
         # Test valid format
         riot_id_valid = "TestPlayer#EUW"
         assert "#" in riot_id_valid

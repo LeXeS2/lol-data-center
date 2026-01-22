@@ -1,7 +1,9 @@
 """Background polling service for fetching new matches."""
 
 import asyncio
-from datetime import datetime
+from contextlib import suppress
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Region, RiotApiClient, RiotApiError
 from lol_data_center.api_client.validation import ValidationError
@@ -23,7 +25,7 @@ class PollingService:
         self,
         api_client: RiotApiClient | None = None,
         polling_interval: int | None = None,
-    ):
+    ) -> None:
         """Initialize the polling service.
 
         Args:
@@ -54,10 +56,8 @@ class PollingService:
         self._running = False
         if self._task:
             self._task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
         await self._api_client.close()
         logger.info("Polling service stopped")
@@ -112,7 +112,7 @@ class PollingService:
     async def _poll_player(
         self,
         player: TrackedPlayer,
-        session: "AsyncSession",  # type: ignore
+        session: AsyncSession,
     ) -> None:
         """Poll a single player for new matches.
 
@@ -164,12 +164,29 @@ class PollingService:
                 break
 
             # Check if match already exists in database
+            match_data = None
             if await match_service.match_exists(match_id):
-                continue
+                logger.debug(
+                    "Match exists, loading from DB",
+                    match_id=match_id,
+                    player_id=player.id,
+                )
+
+                # Load match from database instead of querying Riot API
+                match_data = await match_service.get_match_dto(match_id)
+
+                if match_data is None:
+                    logger.error(
+                        "Match exists but failed to load from DB",
+                        match_id=match_id,
+                        player_id=player.id,
+                    )
+                    continue
 
             try:
-                # Fetch match details
-                match_data = await self._api_client.get_match(match_id, region)
+                # Fetch match details from Riot API if not loaded from DB
+                if match_data is None:
+                    match_data = await self._api_client.get_match(match_id, region)
 
                 # Filter: process only CLASSIC game mode
                 if match_data.info.game_mode != "CLASSIC":
@@ -180,7 +197,16 @@ class PollingService:
                     )
                     continue
 
-                # Save match to database
+                # Filter: Skip matches with BOT participants
+                if match_service.has_bot_participant(match_data):
+                    logger.debug(
+                        "Skipping match with BOT participant",
+                        match_id=match_id,
+                        player_id=player.id,
+                    )
+                    continue
+
+                # Save match to database (only saves if doesn't exist)
                 await match_service.save_match(match_data)
 
                 # Get participant data for this player

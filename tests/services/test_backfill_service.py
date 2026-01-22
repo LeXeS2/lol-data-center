@@ -1,7 +1,8 @@
 """Tests for BackfillService."""
 
-# type: ignore  # Fixtures from conftest.py don't have type stubs
+from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -10,6 +11,12 @@ from lol_data_center.api_client.riot_client import Region, RiotApiClient
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.match_service import MatchService
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lol_data_center.database.models import TrackedPlayer
+    from lol_data_center.schemas.riot_api import MatchDto
+
 
 class TestBackfillService:
     """Tests for BackfillService."""
@@ -17,9 +24,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_no_matches(
         self,
-        async_session,
-        sample_player,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
         """Test backfill when player has no match history."""
         # Create mock client
         mock_client = MagicMock(spec=RiotApiClient)
@@ -41,9 +48,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_new_matches(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
     ) -> None:
         """Test backfill successfully saves new matches."""
         # Create mock client
@@ -73,9 +80,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_skips_existing_matches(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
     ) -> None:
         """Test backfill skips matches that already exist in database."""
         # Pre-save one match
@@ -107,9 +114,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_with_progress_callback(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
     ) -> None:
         """Test backfill calls progress callback correctly."""
         mock_client = MagicMock(spec=RiotApiClient)
@@ -138,9 +145,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_continues_on_error(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
     ) -> None:
         """Test backfill continues processing after individual match errors."""
         mock_client = MagicMock(spec=RiotApiClient)
@@ -170,9 +177,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_large_batch(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
     ) -> None:
         """Test backfill handles large number of matches."""
         mock_client = MagicMock(spec=RiotApiClient)
@@ -195,9 +202,9 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_different_regions(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
     ) -> None:
         """Test backfill with different regions."""
         mock_client = MagicMock(spec=RiotApiClient)
@@ -227,10 +234,10 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_mixed_existing_and_new(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+    ) -> None:
         """Test backfill with mix of existing and new matches."""
         # Pre-save 2 matches
         match_service = MatchService(async_session)
@@ -270,10 +277,10 @@ class TestBackfillService:
     @pytest.mark.asyncio
     async def test_backfill_player_history_progress_callback_with_skips(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+    ) -> None:
         """Test progress callback is called even for skipped matches."""
         # Pre-save one match
         match_service = MatchService(async_session)
@@ -295,7 +302,7 @@ class TestBackfillService:
 
         progress_calls = []
 
-        def track_progress(current, total):
+        def track_progress(current: int, total: int) -> None:
             progress_calls.append((current, total))
 
         saved_count = await service.backfill_player_history(

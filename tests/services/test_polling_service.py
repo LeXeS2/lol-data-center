@@ -1,12 +1,23 @@
 """Tests for PollingService filtering by game mode."""
 
-import pytest
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
-from lol_data_center.api_client.riot_client import Region
-from lol_data_center.services.polling_service import PollingService
-from lol_data_center.events.event_bus import get_event_bus, NewMatchEvent
+import pytest
+
+from lol_data_center.events.event_bus import NewMatchEvent, get_event_bus
 from lol_data_center.services.match_service import MatchService
+from lol_data_center.services.polling_service import PollingService
+
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from lol_data_center.database.models import TrackedPlayer
+    from lol_data_center.schemas.riot_api import MatchDto
 
 
 class TestPollingServiceFiltering:
@@ -15,11 +26,11 @@ class TestPollingServiceFiltering:
     @pytest.mark.asyncio
     async def test_polling_skips_non_classic(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
-        mock_riot_client,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
         # Arrange: non-CLASSIC match
         match_id = "EUW1_NON_CLASSIC_1"
         mock_riot_client.get_match_ids.return_value = [match_id]
@@ -53,11 +64,11 @@ class TestPollingServiceFiltering:
     @pytest.mark.asyncio
     async def test_polling_accepts_classic(
         self,
-        async_session,
-        sample_player,
-        sample_match_dto,
-        mock_riot_client,
-    ):
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
         # Arrange: CLASSIC match
         match_id = "EUW1_CLASSIC_1"
         mock_riot_client.get_match_ids.return_value = [match_id]

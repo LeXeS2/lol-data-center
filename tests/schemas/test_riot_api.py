@@ -1,19 +1,25 @@
 """Tests for Riot API schemas."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pytest
 from pydantic import ValidationError
 
 from lol_data_center.schemas.riot_api import (
     AccountDto,
-    MatchDto,
     ParticipantDto,
 )
+
+if TYPE_CHECKING:
+    from lol_data_center.schemas.riot_api import MatchDto
 
 
 class TestAccountDto:
     """Tests for AccountDto schema."""
 
-    def test_valid_account(self):
+    def test_valid_account(self) -> None:
         """Test creating a valid account."""
         account = AccountDto(
             puuid="test-puuid-12345",
@@ -25,7 +31,7 @@ class TestAccountDto:
         assert account.game_name == "TestPlayer"
         assert account.tag_line == "EUW"
 
-    def test_alias_mapping(self):
+    def test_alias_mapping(self) -> None:
         """Test that alias mapping works correctly."""
         data = {
             "puuid": "test-puuid",
@@ -37,7 +43,7 @@ class TestAccountDto:
         assert account.game_name == "Player"
         assert account.tag_line == "TAG"
 
-    def test_missing_required_field(self):
+    def test_missing_required_field(self) -> None:
         """Test that missing required fields raise error."""
         with pytest.raises(ValidationError):
             AccountDto(puuid="test")  # Missing gameName and tagLine
@@ -46,7 +52,7 @@ class TestAccountDto:
 class TestParticipantDto:
     """Tests for ParticipantDto schema."""
 
-    def test_kda_property_with_deaths(self):
+    def test_kda_property_with_deaths(self) -> None:
         """Test KDA calculation with deaths."""
         participant = ParticipantDto(
             puuid="test",
@@ -77,7 +83,7 @@ class TestParticipantDto:
         # KDA = (10 + 6) / 2 = 8.0
         assert participant.kda == 8.0
 
-    def test_kda_property_with_zero_deaths(self):
+    def test_kda_property_with_zero_deaths(self) -> None:
         """Test KDA calculation with zero deaths."""
         participant = ParticipantDto(
             puuid="test",
@@ -108,7 +114,7 @@ class TestParticipantDto:
         # With 0 deaths, KDA = kills + assists
         assert participant.kda == 15.0
 
-    def test_extra_fields_ignored(self):
+    def test_extra_fields_ignored(self) -> None:
         """Test that extra fields are ignored."""
         data = {
             "puuid": "test",
@@ -145,7 +151,7 @@ class TestParticipantDto:
 class TestMatchDto:
     """Tests for MatchDto schema."""
 
-    def test_get_participant_by_puuid(self, sample_match_dto):
+    def test_get_participant_by_puuid(self, sample_match_dto: MatchDto) -> None:
         """Test getting participant by PUUID."""
         participant = sample_match_dto.get_participant_by_puuid("test-puuid-12345")
 
@@ -153,7 +159,7 @@ class TestMatchDto:
         assert participant.puuid == "test-puuid-12345"
         assert participant.champion_name == "Annie"
 
-    def test_get_participant_by_puuid_not_found(self, sample_match_dto):
+    def test_get_participant_by_puuid_not_found(self, sample_match_dto: MatchDto) -> None:
         """Test getting participant by PUUID when not found."""
         participant = sample_match_dto.get_participant_by_puuid("nonexistent-puuid")
 
