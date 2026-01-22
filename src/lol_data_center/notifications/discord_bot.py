@@ -8,12 +8,14 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Platform, Region
+from lol_data_center.charts.chart_generator import ChartGenerator
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session
 from lol_data_center.database.models import MatchParticipant, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
+from lol_data_center.services.stats_service import StatsService
 
 logger = get_logger(__name__)
 
@@ -32,6 +34,18 @@ class DiscordBot:
         self._client: discord.Client | None = None
         self._tree: app_commands.CommandTree | None = None
         self._is_running = False
+
+    @staticmethod
+    def _format_damage(damage: int | float) -> str:
+        """Format damage value to 'k' notation.
+
+        Args:
+            damage: Damage amount
+
+        Returns:
+            Formatted damage string (e.g., "25.4k")
+        """
+        return f"{damage / 1000:.1f}k"
 
     async def start(self) -> None:
         """Start the Discord bot."""
@@ -137,9 +151,7 @@ class DiscordBot:
                     service = PlayerService(session)
 
                     # Check if player already exists
-                    existing_player = await service.get_player_by_riot_id(
-                        game_name, tag_line
-                    )
+                    existing_player = await service.get_player_by_riot_id(game_name, tag_line)
                     if existing_player:
                         await interaction.followup.send(
                             f"⚠️ Player **{riot_id}** is already being tracked.",
@@ -172,9 +184,7 @@ class DiscordBot:
 
                     # Start background task for backfill
                     asyncio.create_task(
-                        self._backfill_and_notify(
-                            interaction, player, region_enum, session
-                        )
+                        self._backfill_and_notify(interaction, player, region_enum, session)
                     )
 
                     logger.info(
@@ -301,6 +311,367 @@ class DiscordBot:
                     ephemeral=True,
                 )
 
+        @self._tree.command(
+            name="stats-by-champion",
+            description="View aggregated statistics for a player by champion",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            min_games="Minimum number of games required (default: 1)",
+        )
+        async def stats_by_champion_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            min_games: int = 1,
+        ) -> None:
+            """View aggregated statistics for a player by champion."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                # Get player and stats
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsService(session)
+                    stats = await stats_service.get_stats_by_champion(player.puuid, min_games)
+
+                    if not stats:
+                        await interaction.followup.send(
+                            f"ℹ️ No stats found for **{riot_id}** "
+                            f"(minimum {min_games} game{'s' if min_games > 1 else ''} "
+                            "per champion).",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Create embed with champion stats
+                    embed = discord.Embed(
+                        title=f"📊 Champion Stats: {riot_id}",
+                        description=f"Aggregated statistics by champion (min {min_games} games)",
+                        color=discord.Color.blue(),
+                    )
+
+                    # Add fields for top champions (limit to 10)
+                    for champion_stat in stats[:10]:
+                        kda_str = f"{champion_stat.avg_kda:.2f}"
+                        cs_str = f"{champion_stat.avg_cs:.1f}"
+                        dmg_str = self._format_damage(champion_stat.avg_damage)
+
+                        field_value = (
+                            f"**Games:** {champion_stat.game_count} | "
+                            f"**WR:** {champion_stat.win_rate:.1f}%\n"
+                            f"**KDA:** {champion_stat.avg_kills:.1f}/"
+                            f"{champion_stat.avg_deaths:.1f}/"
+                            f"{champion_stat.avg_assists:.1f} ({kda_str})\n"
+                            f"**CS:** {cs_str} | **Damage:** {dmg_str} | "
+                            f"**Vision:** {champion_stat.avg_vision_score:.1f}"
+                        )
+
+                        embed.add_field(
+                            name=f"🎮 {champion_stat.group_key}",
+                            value=field_value,
+                            inline=False,
+                        )
+
+                    total_games = sum(s.game_count for s in stats)
+                    embed.set_footer(
+                        text=f"Total: {total_games} games across {len(stats)} champions"
+                    )
+
+                    await interaction.followup.send(embed=embed)
+
+                    logger.info(
+                        "Stats by champion requested via Discord bot",
+                        riot_id=riot_id,
+                        user=str(interaction.user),
+                    )
+
+            except Exception as e:
+                logger.exception("Error getting stats by champion via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
+        @self._tree.command(
+            name="stats-by-role",
+            description="View aggregated statistics for a player by role",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            min_games="Minimum number of games required (default: 1)",
+        )
+        async def stats_by_role_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            min_games: int = 1,
+        ) -> None:
+            """View aggregated statistics for a player by role."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                # Get player and stats
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsService(session)
+                    stats = await stats_service.get_stats_by_role(player.puuid, min_games)
+
+                    if not stats:
+                        await interaction.followup.send(
+                            f"ℹ️ No stats found for **{riot_id}** "
+                            f"(minimum {min_games} game{'s' if min_games > 1 else ''} per role).",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Create embed with role stats
+                    embed = discord.Embed(
+                        title=f"📊 Role Stats: {riot_id}",
+                        description=f"Aggregated statistics by role (min {min_games} games)",
+                        color=discord.Color.blue(),
+                    )
+
+                    # Role emoji mapping
+                    role_emojis = {
+                        "TOP": "⚔️",
+                        "JUNGLE": "🌲",
+                        "MIDDLE": "🔮",
+                        "BOTTOM": "🏹",
+                        "UTILITY": "🛡️",
+                    }
+
+                    # Add fields for all roles
+                    for role_stat in stats:
+                        role_emoji = role_emojis.get(role_stat.group_key, "❓")
+                        kda_str = f"{role_stat.avg_kda:.2f}"
+                        cs_str = f"{role_stat.avg_cs:.1f}"
+                        dmg_str = self._format_damage(role_stat.avg_damage)
+
+                        field_value = (
+                            f"**Games:** {role_stat.game_count} | "
+                            f"**WR:** {role_stat.win_rate:.1f}%\n"
+                            f"**KDA:** {role_stat.avg_kills:.1f}/"
+                            f"{role_stat.avg_deaths:.1f}/"
+                            f"{role_stat.avg_assists:.1f} ({kda_str})\n"
+                            f"**CS:** {cs_str} | **Damage:** {dmg_str} | "
+                            f"**Vision:** {role_stat.avg_vision_score:.1f}"
+                        )
+
+                        embed.add_field(
+                            name=f"{role_emoji} {role_stat.group_key}",
+                            value=field_value,
+                            inline=False,
+                        )
+
+                    total_games = sum(s.game_count for s in stats)
+                    embed.set_footer(text=f"Total: {total_games} games across {len(stats)} roles")
+
+                    await interaction.followup.send(embed=embed)
+
+                    logger.info(
+                        "Stats by role requested via Discord bot",
+                        riot_id=riot_id,
+                        user=str(interaction.user),
+                    )
+
+            except Exception as e:
+                logger.exception("Error getting stats by role via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
+        @self._tree.command(
+            name="recent-game",
+            description="View details for a player's n-th most recent game",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            n="Game index (1 = most recent, 2 = second most recent, etc.)",
+        )
+        async def recent_game_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            n: int = 1,
+        ) -> None:
+            """View details for a player's n-th most recent game."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                # Get player and game
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsService(session)
+                    game = await stats_service.get_nth_recent_game(player.puuid, n)
+
+                    if game is None:
+                        await interaction.followup.send(
+                            f"ℹ️ No game found at index {n} for **{riot_id}**.",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Create embed with game details
+                    result_emoji = "✅" if game.win else "❌"
+                    result_text = "Victory" if game.win else "Defeat"
+                    result_color = discord.Color.green() if game.win else discord.Color.red()
+
+                    embed = discord.Embed(
+                        title=f"{result_emoji} Game #{n}: {riot_id}",
+                        description=f"{game.champion_name} - {game.individual_position}",
+                        color=result_color,
+                    )
+
+                    # Game info
+                    game_duration = f"{game.time_played // 60}:{game.time_played % 60:02d}"
+                    embed.add_field(
+                        name="📅 Game Info",
+                        value=(
+                            f"**Result:** {result_text}\n"
+                            f"**Duration:** {game_duration}\n"
+                            f"**Date:** {game.game_creation.strftime('%Y-%m-%d %H:%M')}"
+                        ),
+                        inline=True,
+                    )
+
+                    # KDA
+                    kda_str = f"{game.kda:.2f}"
+                    embed.add_field(
+                        name="⚔️ KDA",
+                        value=(f"**{game.kills}/{game.deaths}/{game.assists}**\nKDA: {kda_str}"),
+                        inline=True,
+                    )
+
+                    # Farm & Gold
+                    cs_per_min = game.total_minions_killed / (game.time_played / 60)
+                    embed.add_field(
+                        name="💰 Farm & Gold",
+                        value=(
+                            f"**CS:** {game.total_minions_killed} ({cs_per_min:.1f}/min)\n"
+                            f"**Gold:** {game.gold_earned:,}"
+                        ),
+                        inline=True,
+                    )
+
+                    # Damage & Vision
+                    dmg_per_min = game.total_damage_dealt_to_champions / (game.time_played / 60)
+                    embed.add_field(
+                        name="🎯 Damage & Vision",
+                        value=(
+                            f"**Damage:** {game.total_damage_dealt_to_champions:,} "
+                            f"({dmg_per_min:.0f}/min)\n"
+                            f"**Vision Score:** {game.vision_score}"
+                        ),
+                        inline=True,
+                    )
+
+                    # Multi-kills
+                    multi_kills = []
+                    if game.penta_kills > 0:
+                        multi_kills.append(f"🏆 {game.penta_kills} Pentakill")
+                    if game.quadra_kills > 0:
+                        multi_kills.append(f"💎 {game.quadra_kills} Quadrakill")
+                    if game.triple_kills > 0:
+                        multi_kills.append(f"💠 {game.triple_kills} Triple")
+
+                    if multi_kills:
+                        embed.add_field(
+                            name="🌟 Highlights",
+                            value="\n".join(multi_kills),
+                            inline=True,
+                        )
+
+                    # Objectives
+                    objectives = []
+                    if game.baron_kills > 0:
+                        objectives.append(f"Baron: {game.baron_kills}")
+                    if game.dragon_kills > 0:
+                        objectives.append(f"Dragons: {game.dragon_kills}")
+                    if game.turret_kills > 0:
+                        objectives.append(f"Turrets: {game.turret_kills}")
+
+                    if objectives:
+                        embed.add_field(
+                            name="🏰 Objectives",
+                            value=" | ".join(objectives),
+                            inline=True,
+                        )
+
+                    embed.set_footer(text=f"Match ID: {game.match_id}")
+
+                    await interaction.followup.send(embed=embed)
+
+                    logger.info(
+                        "Recent game requested via Discord bot",
+                        riot_id=riot_id,
+                        n=n,
+                        match_id=game.match_id,
+                        user=str(interaction.user),
+                    )
+
+            except Exception as e:
+                logger.exception("Error getting recent game via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
     async def _backfill_and_notify(
         self,
         interaction: discord.Interaction,
@@ -386,6 +757,271 @@ class DiscordBot:
                 inline=False,
             )
             await interaction.followup.send(embed=embed)
+
+        # Chart commands - visual statistics
+        assert self._tree is not None  # Help mypy understand type narrowing
+
+        @self._tree.command(
+            name="chart-performance",
+            description="Generate a line chart showing stat trends over recent games",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            stat="Stat to chart (kills, deaths, assists, kda, cs, damage, vision, gold)",
+            games="Number of recent games to chart (default: 10, max: 50)",
+        )
+        @app_commands.choices(
+            stat=[
+                app_commands.Choice(name="Kills", value="kills"),
+                app_commands.Choice(name="Deaths", value="deaths"),
+                app_commands.Choice(name="Assists", value="assists"),
+                app_commands.Choice(name="KDA", value="kda"),
+                app_commands.Choice(name="CS (Minions)", value="cs"),
+                app_commands.Choice(name="Damage to Champions", value="damage"),
+                app_commands.Choice(name="Vision Score", value="vision"),
+                app_commands.Choice(name="Gold Earned", value="gold"),
+            ]
+        )
+        async def chart_performance_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            stat: str,
+            games: int = 10,
+        ) -> None:
+            """Generate a performance chart for a stat over recent games."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Validate games parameter
+                if games < 1 or games > 50:
+                    await interaction.followup.send(
+                        "❌ Error: Games must be between 1 and 50",
+                        ephemeral=True,
+                    )
+                    return
+
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                # Get player and recent matches
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsService(session)
+                    matches = await stats_service.get_recent_matches(player.puuid, limit=games)
+
+                    if not matches:
+                        await interaction.followup.send(
+                            f"ℹ️ No matches found for **{riot_id}**",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Reverse to show oldest to newest (left to right)
+                    matches = list(reversed(matches))
+
+                    # Extract data based on stat type
+                    stat_mapping = {
+                        "kills": ("kills", "Kills"),
+                        "deaths": ("deaths", "Deaths"),
+                        "assists": ("assists", "Assists"),
+                        "kda": ("kda", "KDA"),
+                        "cs": ("total_minions_killed", "CS"),
+                        "damage": ("total_damage_dealt_to_champions", "Damage"),
+                        "vision": ("vision_score", "Vision Score"),
+                        "gold": ("gold_earned", "Gold"),
+                    }
+
+                    if stat not in stat_mapping:
+                        await interaction.followup.send(
+                            "❌ Error: Invalid stat type",
+                            ephemeral=True,
+                        )
+                        return
+
+                    field_name, display_name = stat_mapping[stat]
+                    y_values = [float(getattr(match, field_name)) for match in matches]
+                    x_values = [f"Game {i + 1}" for i in range(len(matches))]
+
+                    # Generate chart
+                    chart_gen = ChartGenerator()
+                    buffer = chart_gen.create_line_chart(
+                        x_values=x_values,
+                        y_values=y_values,
+                        title=f"{display_name} Over Last {len(matches)} Games - {riot_id}",
+                        x_label="Game Number",
+                        y_label=display_name,
+                    )
+
+                    # Send chart as file
+                    file = discord.File(buffer, filename=f"{stat}_chart.png")
+                    await interaction.followup.send(
+                        f"📊 **{display_name}** performance chart for **{riot_id}**:",
+                        file=file,
+                    )
+
+                    logger.info(
+                        "Performance chart generated via Discord bot",
+                        riot_id=riot_id,
+                        stat=stat,
+                        games=len(matches),
+                        user=str(interaction.user),
+                    )
+
+            except Exception as e:
+                logger.exception("Error generating performance chart via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
+        @self._tree.command(
+            name="chart-compare",
+            description="Generate a bar chart comparing stats across champions or roles",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            group_by="Group statistics by champion or role",
+            stat="Stat to compare (avg_kills, avg_deaths, avg_kda, avg_cs, avg_damage, win_rate)",
+            min_games="Minimum games required per group (default: 3)",
+        )
+        @app_commands.choices(
+            group_by=[
+                app_commands.Choice(name="Champion", value="champion"),
+                app_commands.Choice(name="Role", value="role"),
+            ],
+            stat=[
+                app_commands.Choice(name="Average Kills", value="avg_kills"),
+                app_commands.Choice(name="Average Deaths", value="avg_deaths"),
+                app_commands.Choice(name="Average KDA", value="avg_kda"),
+                app_commands.Choice(name="Average CS", value="avg_cs"),
+                app_commands.Choice(name="Average Damage", value="avg_damage"),
+                app_commands.Choice(name="Win Rate %", value="win_rate"),
+            ],
+        )
+        async def chart_compare_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            group_by: str,
+            stat: str,
+            min_games: int = 3,
+        ) -> None:
+            """Generate a comparison chart for stats across champions or roles."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                # Get player and aggregated stats
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsService(session)
+
+                    # Get stats based on grouping
+                    if group_by == "champion":
+                        stats = await stats_service.get_stats_by_champion(
+                            player.puuid, min_games=min_games
+                        )
+                        group_label = "Champion"
+                    else:  # role
+                        stats = await stats_service.get_stats_by_role(
+                            player.puuid, min_games=min_games
+                        )
+                        group_label = "Role"
+
+                    if not stats:
+                        await interaction.followup.send(
+                            f"ℹ️ No stats found for **{riot_id}** "
+                            f"(minimum {min_games} game{'s' if min_games > 1 else ''} "
+                            f"per {group_label.lower()}).",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Limit to top 10 to keep chart readable
+                    stats = stats[:10]
+
+                    # Extract data
+                    categories = [s.group_key for s in stats]
+                    values = [float(getattr(s, stat)) for s in stats]
+
+                    # Stat display names
+                    stat_names = {
+                        "avg_kills": "Average Kills",
+                        "avg_deaths": "Average Deaths",
+                        "avg_kda": "Average KDA",
+                        "avg_cs": "Average CS",
+                        "avg_damage": "Average Damage to Champions",
+                        "win_rate": "Win Rate %",
+                    }
+
+                    stat_display = stat_names.get(stat, stat)
+
+                    # Generate chart
+                    chart_gen = ChartGenerator()
+                    buffer = chart_gen.create_bar_chart(
+                        categories=categories,
+                        values=values,
+                        title=f"{stat_display} by {group_label} - {riot_id}",
+                        x_label=group_label,
+                        y_label=stat_display,
+                    )
+
+                    # Send chart as file
+                    file = discord.File(buffer, filename=f"{group_by}_{stat}_chart.png")
+                    await interaction.followup.send(
+                        f"📊 **{stat_display}** comparison by **{group_label}** "
+                        f"for **{riot_id}** (min {min_games} games):",
+                        file=file,
+                    )
+
+                    logger.info(
+                        "Comparison chart generated via Discord bot",
+                        riot_id=riot_id,
+                        group_by=group_by,
+                        stat=stat,
+                        categories=len(categories),
+                        user=str(interaction.user),
+                    )
+
+            except Exception as e:
+                logger.exception("Error generating comparison chart via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
 
     async def stop(self) -> None:
         """Stop the Discord bot."""

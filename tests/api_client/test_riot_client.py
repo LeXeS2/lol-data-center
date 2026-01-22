@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from lol_data_center.api_client.riot_client import Region, RiotApiClient
+from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
 
 
 class TestFetchAllMatchIds:
@@ -181,3 +182,75 @@ class TestFetchAllMatchIds:
 
         assert calls[1].kwargs["start"] == 100
         assert calls[2].kwargs["start"] == 200
+
+
+class TestGetMatchTimeline:
+    """Tests for RiotApiClient.get_match_timeline method."""
+
+    @pytest.mark.asyncio
+    async def test_get_match_timeline_success(self) -> None:
+        """Test successfully fetching match timeline."""
+        client = RiotApiClient(api_key="test-key")
+
+        # Mock the _request method to return timeline data
+        timeline_data = {
+            "metadata": {
+                "dataVersion": "2",
+                "matchId": "EUW1_12345678",
+                "participants": ["puuid1", "puuid2"],
+            },
+            "info": {
+                "frameInterval": 60000,
+                "frames": [
+                    {"timestamp": 0, "events": []},
+                    {"timestamp": 60000, "events": [{"type": "CHAMPION_KILL"}]},
+                ],
+            },
+        }
+
+        client._request = AsyncMock(return_value=timeline_data)
+
+        result = await client.get_match_timeline("EUW1_12345678", Region.EUROPE)
+
+        assert isinstance(result, MatchTimelineDto)
+        assert isinstance(result.metadata, MatchMetadataDto)
+        assert result.metadata.match_id == "EUW1_12345678"
+        assert "frameInterval" in result.info
+        assert "frames" in result.info
+        assert len(result.info["frames"]) == 2
+
+        # Verify the request was made correctly
+        client._request.assert_called_once_with(
+            "europe",
+            "/lol/match/v5/matches/EUW1_12345678/timeline",
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_match_timeline_different_region(self) -> None:
+        """Test fetching match timeline from different region."""
+        client = RiotApiClient(api_key="test-key")
+
+        timeline_data = {
+            "metadata": {
+                "dataVersion": "2",
+                "matchId": "NA1_987654321",
+                "participants": ["puuid1"],
+            },
+            "info": {
+                "frameInterval": 60000,
+                "frames": [],
+            },
+        }
+
+        client._request = AsyncMock(return_value=timeline_data)
+
+        result = await client.get_match_timeline("NA1_987654321", Region.AMERICAS)
+
+        assert result.metadata.match_id == "NA1_987654321"
+
+        # Verify correct region was used
+        client._request.assert_called_once_with(
+            "americas",
+            "/lol/match/v5/matches/NA1_987654321/timeline",
+        )
+

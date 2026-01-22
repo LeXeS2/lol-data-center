@@ -13,6 +13,7 @@ A League of Legends match data collection and achievement evaluation system.
   - Player percentiles (top X% of own games)
 - **Discord Notifications**: Sends achievement notifications to Discord
 - **Discord Bot Commands**: Interactive slash commands for managing players directly from Discord
+- **Visual Statistics**: Generate charts showing performance trends and comparisons
 - **Rate Limiting**: Respects Riot API rate limits (100 requests / 2 minutes)
 - **Async Architecture**: Non-blocking API interactions
 
@@ -126,6 +127,11 @@ The Discord bot enables interactive slash commands for managing players directly
    - `/add-player` - Add a player to track (includes automatic match history backfill with progress notifications)
    - `/remove-player` - Remove a player from tracking
    - `/list-players` - List all tracked players
+   - `/stats-by-champion` - View aggregated statistics grouped by champion (avg, min, max, stddev)
+   - `/stats-by-role` - View aggregated statistics grouped by role (avg, min, max, stddev)
+   - `/recent-game` - View detailed stats for the n-th most recent game
+   - `/chart-performance` - Generate line charts showing stat trends over recent games (kills, deaths, assists, KDA, CS, damage, vision, gold)
+   - `/chart-compare` - Generate bar charts comparing stats across champions or roles (avg_kills, avg_deaths, avg_kda, avg_cs, avg_damage, win_rate)
 
 Note: The Discord bot is optional. The application will run without it if `DISCORD_BOT_TOKEN` is not configured.
 

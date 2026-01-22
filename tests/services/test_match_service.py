@@ -90,6 +90,75 @@ class TestMatchService:
         assert broken_records["kills"] == (15, 20)  # Old, new
 
     @pytest.mark.asyncio
+    async def test_update_timeline_data(
+        self,
+        async_session: AsyncSession,
+        sample_match_dto: MatchDto,
+    ) -> None:
+        """Test updating timeline data for a match."""
+        service = MatchService(async_session)
+
+        # Save a match first
+        match = await service.save_match(sample_match_dto)
+
+        # Update with timeline data
+        timeline_data = {
+            "frameInterval": 60000,
+            "frames": [
+                {"timestamp": 0, "events": []},
+                {"timestamp": 60000, "events": [{"type": "CHAMPION_KILL"}]},
+            ],
+        }
+
+        updated_match = await service.update_timeline_data(match.match_id, timeline_data)
+
+        assert updated_match is not None
+        assert updated_match.timeline_data == timeline_data
+
+    @pytest.mark.asyncio
+    async def test_update_timeline_data_match_not_found(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
+        """Test updating timeline data for non-existent match returns None."""
+        service = MatchService(async_session)
+
+        result = await service.update_timeline_data("NONEXISTENT_123", {"frames": []})
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_timeline_data(
+        self,
+        async_session: AsyncSession,
+        sample_match_dto: MatchDto,
+    ) -> None:
+        """Test retrieving timeline data for a match."""
+        service = MatchService(async_session)
+
+        # Save a match with timeline data
+        match = await service.save_match(sample_match_dto)
+        timeline_data = {"frames": [{"timestamp": 0}]}
+        await service.update_timeline_data(match.match_id, timeline_data)
+
+        # Retrieve timeline data
+        retrieved_timeline = await service.get_timeline_data(match.match_id)
+
+        assert retrieved_timeline == timeline_data
+
+    @pytest.mark.asyncio
+    async def test_get_timeline_data_not_found(
+        self,
+        async_session: AsyncSession,
+    ) -> None:
+        """Test retrieving timeline data for non-existent match returns None."""
+        service = MatchService(async_session)
+
+        timeline = await service.get_timeline_data("NONEXISTENT_123")
+
+        assert timeline is None
+
+    @pytest.mark.asyncio
     async def test_get_recent_matches_for_player(
         self,
         async_session: AsyncSession,
