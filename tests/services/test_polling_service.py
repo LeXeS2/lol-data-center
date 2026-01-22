@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from lol_data_center.api_client.riot_client import RiotApiError
 from lol_data_center.events.event_bus import NewMatchEvent, get_event_bus
+from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
 from lol_data_center.services.match_service import MatchService
 from lol_data_center.services.polling_service import PollingService
 
@@ -69,8 +71,6 @@ class TestPollingServiceFiltering:
         sample_match_dto: MatchDto,
         mock_riot_client: MagicMock,
     ) -> None:
-        from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
-
         # Arrange: CLASSIC match
         match_id = "EUW1_CLASSIC_1"
         mock_riot_client.get_match_ids.return_value = [match_id]
@@ -121,8 +121,6 @@ class TestPollingServiceFiltering:
         mock_riot_client: MagicMock,
     ) -> None:
         """Test that timeline data is fetched and stored for new matches."""
-        from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
-
         # Arrange: CLASSIC match with timeline
         match_id = "EUW1_TIMELINE_TEST"
         mock_riot_client.get_match_ids.return_value = [match_id]
@@ -178,9 +176,6 @@ class TestPollingServiceFiltering:
         mock_riot_client: MagicMock,
     ) -> None:
         """Test that timeline fetch failures don't prevent match ingestion."""
-        from lol_data_center.api_client.riot_client import RiotApiError
-        from lol_data_center.events.event_bus import get_event_bus
-
         # Arrange: CLASSIC match, but timeline fetch fails
         match_id = "EUW1_TIMELINE_FAIL"
         mock_riot_client.get_match_ids.return_value = [match_id]

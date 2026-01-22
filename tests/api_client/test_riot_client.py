@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from lol_data_center.api_client.riot_client import Region, RiotApiClient
+from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
 
 
 class TestFetchAllMatchIds:
@@ -189,8 +190,6 @@ class TestGetMatchTimeline:
     @pytest.mark.asyncio
     async def test_get_match_timeline_success(self) -> None:
         """Test successfully fetching match timeline."""
-        from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
-
         client = RiotApiClient(api_key="test-key")
 
         # Mock the _request method to return timeline data
