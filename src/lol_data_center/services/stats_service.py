@@ -241,6 +241,38 @@ class StatsService:
 
         return game
 
+    async def get_recent_matches(
+        self,
+        puuid: str,
+        limit: int = 20,
+    ) -> list[MatchParticipant]:
+        """Get recent match participations for a player, ordered by date.
+
+        Args:
+            puuid: Player PUUID
+            limit: Maximum number of matches to retrieve (default: 20)
+
+        Returns:
+            List of MatchParticipant ordered by game_creation (descending)
+        """
+        result = await self._session.execute(
+            select(MatchParticipant)
+            .where(MatchParticipant.puuid == puuid)
+            .order_by(desc(MatchParticipant.game_creation))
+            .limit(limit)
+        )
+
+        matches = list(result.scalars().all())
+
+        logger.info(
+            "Retrieved recent matches for timeline",
+            puuid=puuid,
+            count=len(matches),
+            limit=limit,
+        )
+
+        return matches
+
     def _calculate_aggregated_stats(
         self,
         group_key: str,

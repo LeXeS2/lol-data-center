@@ -1096,3 +1096,206 @@ class TestStatsService:
         game = await service.get_nth_recent_game(sample_player.puuid, n=-1)
 
         assert game is None
+
+    @pytest.mark.asyncio
+    async def test_get_recent_matches_no_games(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
+        """Test get_recent_matches with no games."""
+        service = StatsService(async_session)
+
+        matches = await service.get_recent_matches(sample_player.puuid, limit=10)
+
+        assert matches == []
+
+    @pytest.mark.asyncio
+    async def test_get_recent_matches_multiple_games(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
+        """Test get_recent_matches with multiple games."""
+        # Create 5 match participations with different timestamps
+        base_time = datetime.now()
+        for i in range(5):
+            participant = MatchParticipant(
+                match_db_id=i + 1,
+                match_id=f"TEST_MATCH_{i}",
+                puuid=sample_player.puuid,
+                player_id=sample_player.id,
+                game_creation=base_time - timedelta(days=i),
+                summoner_name=sample_player.game_name,
+                profile_icon=1,
+                summoner_level=100,
+                champion_id=157 + i,
+                champion_name=f"Champion{i}",
+                champion_level=18,
+                team_id=100,
+                team_position="MIDDLE",
+                individual_position="MIDDLE",
+                lane="MIDDLE",
+                role="SOLO",
+                kills=5 + i,
+                deaths=2,
+                assists=10 + i,
+                kda=7.5 + i,
+                total_damage_dealt=100000,
+                total_damage_dealt_to_champions=25000 + i * 2000,
+                total_damage_taken=20000,
+                damage_self_mitigated=15000,
+                largest_killing_spree=5,
+                largest_multi_kill=2,
+                killing_sprees=2,
+                double_kills=1,
+                triple_kills=0,
+                quadra_kills=0,
+                penta_kills=0,
+                gold_earned=15000 + i * 1000,
+                gold_spent=14000,
+                total_minions_killed=200 + i * 10,
+                neutral_minions_killed=50,
+                vision_score=40 + i,
+                wards_placed=15,
+                wards_killed=5,
+                vision_wards_bought_in_game=3,
+                turret_kills=2,
+                turret_takedowns=3,
+                inhibitor_kills=1,
+                inhibitor_takedowns=1,
+                baron_kills=1,
+                dragon_kills=2,
+                objective_stolen=0,
+                total_heal=5000,
+                total_heals_on_teammates=1000,
+                total_damage_shielded_on_teammates=2000,
+                total_time_cc_dealt=30,
+                time_ccing_others=30,
+                win=i % 2 == 0,
+                first_blood_kill=False,
+                first_blood_assist=True,
+                first_tower_kill=False,
+                first_tower_assist=False,
+                game_ended_in_surrender=False,
+                game_ended_in_early_surrender=False,
+                time_played=1800,
+                item0=3031,
+                item1=3006,
+                item2=3094,
+                item3=3072,
+                item4=3026,
+                item5=3139,
+                item6=3340,
+                summoner1_id=4,
+                summoner2_id=14,
+            )
+            async_session.add(participant)
+        await async_session.commit()
+
+        service = StatsService(async_session)
+
+        # Get all 5 matches
+        matches = await service.get_recent_matches(sample_player.puuid, limit=10)
+
+        assert len(matches) == 5
+        # Check they're ordered by game_creation descending (most recent first)
+        assert matches[0].match_id == "TEST_MATCH_0"
+        assert matches[1].match_id == "TEST_MATCH_1"
+        assert matches[2].match_id == "TEST_MATCH_2"
+        assert matches[3].match_id == "TEST_MATCH_3"
+        assert matches[4].match_id == "TEST_MATCH_4"
+
+    @pytest.mark.asyncio
+    async def test_get_recent_matches_limit(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
+        """Test get_recent_matches respects limit."""
+        # Create 10 match participations
+        base_time = datetime.now()
+        for i in range(10):
+            participant = MatchParticipant(
+                match_db_id=i + 1,
+                match_id=f"TEST_MATCH_{i}",
+                puuid=sample_player.puuid,
+                player_id=sample_player.id,
+                game_creation=base_time - timedelta(days=i),
+                summoner_name=sample_player.game_name,
+                profile_icon=1,
+                summoner_level=100,
+                champion_id=157,
+                champion_name="Yasuo",
+                champion_level=18,
+                team_id=100,
+                team_position="MIDDLE",
+                individual_position="MIDDLE",
+                lane="MIDDLE",
+                role="SOLO",
+                kills=5,
+                deaths=2,
+                assists=10,
+                kda=7.5,
+                total_damage_dealt=100000,
+                total_damage_dealt_to_champions=25000,
+                total_damage_taken=20000,
+                damage_self_mitigated=15000,
+                largest_killing_spree=5,
+                largest_multi_kill=2,
+                killing_sprees=2,
+                double_kills=1,
+                triple_kills=0,
+                quadra_kills=0,
+                penta_kills=0,
+                gold_earned=15000,
+                gold_spent=14000,
+                total_minions_killed=200,
+                neutral_minions_killed=50,
+                vision_score=40,
+                wards_placed=15,
+                wards_killed=5,
+                vision_wards_bought_in_game=3,
+                turret_kills=2,
+                turret_takedowns=3,
+                inhibitor_kills=1,
+                inhibitor_takedowns=1,
+                baron_kills=1,
+                dragon_kills=2,
+                objective_stolen=0,
+                total_heal=5000,
+                total_heals_on_teammates=1000,
+                total_damage_shielded_on_teammates=2000,
+                total_time_cc_dealt=30,
+                time_ccing_others=30,
+                win=True,
+                first_blood_kill=False,
+                first_blood_assist=True,
+                first_tower_kill=False,
+                first_tower_assist=False,
+                game_ended_in_surrender=False,
+                game_ended_in_early_surrender=False,
+                time_played=1800,
+                item0=3031,
+                item1=3006,
+                item2=3094,
+                item3=3072,
+                item4=3026,
+                item5=3139,
+                item6=3340,
+                summoner1_id=4,
+                summoner2_id=14,
+            )
+            async_session.add(participant)
+        await async_session.commit()
+
+        service = StatsService(async_session)
+
+        # Request only 3 matches
+        matches = await service.get_recent_matches(sample_player.puuid, limit=3)
+
+        assert len(matches) == 3
+        # Should get the 3 most recent
+        assert matches[0].match_id == "TEST_MATCH_0"
+        assert matches[1].match_id == "TEST_MATCH_1"
+        assert matches[2].match_id == "TEST_MATCH_2"
