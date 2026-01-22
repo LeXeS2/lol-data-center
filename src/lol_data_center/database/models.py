@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     DateTime,
@@ -41,9 +42,7 @@ class TrackedPlayer(Base):
     polling_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_polled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
@@ -84,9 +83,7 @@ class Match(Base):
     platform_id: Mapped[str] = mapped_column(String(10), nullable=False)
     queue_id: Mapped[int] = mapped_column(Integer, nullable=False)
     tournament_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     participants: Mapped[list["MatchParticipant"]] = relationship(
@@ -205,9 +202,7 @@ class MatchParticipant(Base):
     summoner1_id: Mapped[int] = mapped_column(Integer, nullable=False)
     summoner2_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
     match: Mapped["Match"] = relationship("Match", back_populates="participants")
@@ -287,3 +282,45 @@ class InvalidApiResponse(Base):
 
     def __repr__(self) -> str:
         return f"<InvalidApiResponse(id={self.id}, endpoint={self.endpoint})>"
+
+
+class Champion(Base):
+    """Static champion data mapping champion IDs to names."""
+
+    __tablename__ = "champions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
+    name: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    key: Mapped[str] = mapped_column(String(50), nullable=False)  # Internal key/identifier
+    title: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"<Champion(id={self.id}, name={self.name})>"
+
+
+class MatchTimeline(Base):
+    """Match timeline data stored as JSON.
+
+    Timeline events are highly varied and not suited for relational structure,
+    so we store them as raw JSON blobs for flexibility.
+    """
+
+    __tablename__ = "match_timelines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_id: Mapped[str] = mapped_column(
+        String(50),
+        ForeignKey("matches.match_id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+    timeline_data: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<MatchTimeline(id={self.id}, match_id={self.match_id})>"

@@ -14,6 +14,7 @@ from lol_data_center.logging_config import get_logger
 from lol_data_center.schemas.riot_api import (
     AccountDto,
     MatchDto,
+    MatchTimelineDto,
     SummonerDto,
 )
 
@@ -143,7 +144,7 @@ class RiotApiClient:
         routing: str,
         endpoint: str,
         method: str = "GET",
-        params: dict[str, object] | None = None,
+        params: dict[str, str | int] | None = None,
     ) -> object:
         """Make a rate-limited request to the Riot API.
 
@@ -327,7 +328,7 @@ class RiotApiClient:
             List of match IDs
         """
         endpoint = f"/lol/match/v5/matches/by-puuid/{puuid}/ids"
-        params: dict[str, object] = {"start": start, "count": min(count, 100)}
+        params: dict[str, str | int] = {"start": start, "count": min(count, 100)}
 
         if queue is not None:
             params["queue"] = queue
@@ -450,6 +451,32 @@ class RiotApiClient:
             MatchDto,
             data,
             "match-v5/match",
+            self._build_url(region.value, endpoint),
+        )
+
+    async def get_match_timeline(
+        self,
+        match_id: str,
+        region: Region = Region.EUROPE,
+    ) -> MatchTimelineDto:
+        """Get match timeline by match ID.
+
+        Timeline contains frame-by-frame data including events, participant stats,
+        and positions throughout the match.
+
+        Args:
+            match_id: Match ID (format: REGION_GAMEID)
+            region: Regional routing value
+
+        Returns:
+            Match timeline data
+        """
+        endpoint = f"/lol/match/v5/matches/{match_id}/timeline"
+        data = await self._request(region.value, endpoint)
+        return await validate_response(
+            MatchTimelineDto,
+            data,
+            "match-v5/timeline",
             self._build_url(region.value, endpoint),
         )
 

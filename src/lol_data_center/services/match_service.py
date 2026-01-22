@@ -1,18 +1,30 @@
 """Match data management service."""
 
+from typing import TYPE_CHECKING
+
 from scipy.stats import norm  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from lol_data_center.database.models import Match, MatchParticipant, PlayerRecord, TrackedPlayer
+from lol_data_center.database.models import (
+    Match,
+    MatchParticipant,
+    MatchTimeline,
+    PlayerRecord,
+    TrackedPlayer,
+)
 from lol_data_center.logging_config import get_logger
 from lol_data_center.schemas.riot_api import (
     MatchDto,
     MatchInfoDto,
     MatchMetadataDto,
+    MatchTimelineDto,
     ParticipantDto,
 )
+
+if TYPE_CHECKING:
+    from lol_data_center.api_client.riot_client import Region, RiotApiClient
 
 logger = get_logger(__name__)
 
@@ -532,6 +544,101 @@ class MatchService:
         )
 
         return MatchDto(metadata=metadata, info=info)
+
+    async def save_match_timeline(
+        self,
+        match_id: str,
+        timeline_data: MatchTimelineDto,
+    ) -> MatchTimeline:
+        """Save match timeline data to the database.
+
+        Args:
+            match_id: The match ID
+            timeline_data: Timeline data from the API
+
+        Returns:
+            The saved MatchTimeline instance
+        """
+        # Check if timeline already exists
+        result = await self._session.execute(
+            select(MatchTimeline).where(MatchTimeline.match_id == match_id)
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            logger.debug(
+                "Match timeline already exists, skipping",
+                match_id=match_id,
+            )
+            return existing
+
+        # Convert MatchTimelineDto to dict for JSON storage
+        timeline = MatchTimeline(
+            match_id=match_id,
+            timeline_data={
+                "metadata": timeline_data.metadata,
+                "info": timeline_data.info,
+            },
+        )
+        self._session.add(timeline)
+        await self._session.commit()
+
+        logger.info(
+            "Saved match timeline",
+            match_id=match_id,
+        )
+
+        return timeline
+
+    async def get_match_timeline(self, match_id: str) -> MatchTimelineDto | None:
+        """Retrieve match timeline from the database.
+
+        Args:
+            match_id: The match ID
+
+        Returns:
+            MatchTimelineDto if timeline exists, None otherwise
+        """
+        result = await self._session.execute(
+            select(MatchTimeline).where(MatchTimeline.match_id == match_id)
+        )
+        timeline = result.scalar_one_or_none()
+
+        if timeline is None:
+            return None
+
+        # Convert stored JSON back to MatchTimelineDto
+        return MatchTimelineDto(
+            metadata=timeline.timeline_data["metadata"],
+            info=timeline.timeline_data["info"],
+        )
+
+    async def fetch_and_save_timeline(
+        self,
+        match_id: str,
+        riot_client: "RiotApiClient",
+        region: "Region",
+    ) -> MatchTimeline | None:
+        """Fetch timeline from Riot API and save to database.
+
+        Args:
+            match_id: The match ID
+            riot_client: Riot API client instance
+            region: Region for API call
+
+        Returns:
+            The saved MatchTimeline instance, or None if fetch fails
+        """
+        try:
+            timeline_data = await riot_client.get_match_timeline(match_id, region)
+            return await self.save_match_timeline(match_id, timeline_data)
+        except Exception as e:
+            logger.warning(
+                "Failed to fetch/save match timeline",
+                match_id=match_id,
+                error=str(e),
+            )
+            return None
 
     @staticmethod
     def has_bot_participant(match_data: MatchDto) -> bool:

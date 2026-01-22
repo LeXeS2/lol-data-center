@@ -14,6 +14,7 @@ from lol_data_center.database.models import MatchParticipant, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
+from lol_data_center.services.stats_aggregation_service import StatsAggregationService
 
 logger = get_logger(__name__)
 
@@ -137,9 +138,7 @@ class DiscordBot:
                     service = PlayerService(session)
 
                     # Check if player already exists
-                    existing_player = await service.get_player_by_riot_id(
-                        game_name, tag_line
-                    )
+                    existing_player = await service.get_player_by_riot_id(game_name, tag_line)
                     if existing_player:
                         await interaction.followup.send(
                             f"⚠️ Player **{riot_id}** is already being tracked.",
@@ -172,9 +171,7 @@ class DiscordBot:
 
                     # Start background task for backfill
                     asyncio.create_task(
-                        self._backfill_and_notify(
-                            interaction, player, region_enum, session
-                        )
+                        self._backfill_and_notify(interaction, player, region_enum, session)
                     )
 
                     logger.info(
@@ -296,6 +293,251 @@ class DiscordBot:
 
             except Exception as e:
                 logger.exception("Error listing players via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
+        @self._tree.command(
+            name="stats",
+            description="View aggregated stats for a player",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            group_by="Group stats by role or champion",
+            filter_value="Optional: specific role (e.g., MIDDLE) or champion name to filter",
+        )
+        async def stats_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            group_by: str = "role",
+            filter_value: str | None = None,
+        ) -> None:
+            """View aggregated player stats."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsAggregationService(session)
+
+                    # Get stats based on grouping
+                    if group_by.lower() == "role":
+                        if filter_value:
+                            stats = await stats_service.get_player_stats_by_role(
+                                player.puuid, filter_value.upper()
+                            )
+                            title = f"📊 Stats for {riot_id} - {filter_value.upper()}"
+                        else:
+                            stats_by_role = await stats_service.get_all_roles_stats(player.puuid)
+                            if not stats_by_role:
+                                await interaction.followup.send(
+                                    f"ℹ️ No stats found for {riot_id}",
+                                    ephemeral=True,
+                                )
+                                return
+
+                            # Show first role or create summary
+                            first_role = list(stats_by_role.keys())[0]
+                            stats = stats_by_role[first_role]
+                            title = f"📊 Stats for {riot_id} - All Roles"
+
+                    else:  # champion
+                        stats_by_champion = await stats_service.get_all_champions_stats(
+                            player.puuid
+                        )
+                        if not stats_by_champion:
+                            await interaction.followup.send(
+                                f"ℹ️ No stats found for {riot_id}",
+                                ephemeral=True,
+                            )
+                            return
+
+                        if filter_value:
+                            stats = stats_by_champion.get(filter_value, {})
+                            title = f"📊 Stats for {riot_id} - {filter_value}"
+                        else:
+                            # Show first champion
+                            first_champion = list(stats_by_champion.keys())[0]
+                            stats = stats_by_champion[first_champion]
+                            title = f"📊 Stats for {riot_id} - {first_champion}"
+
+                    if not stats:
+                        await interaction.followup.send(
+                            "ℹ️ No stats found for the specified filter",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Create embed with stats
+                    embed = discord.Embed(
+                        title=title,
+                        color=discord.Color.blue(),
+                    )
+
+                    # Format key stats
+                    for stat_name in ["kills", "deaths", "assists", "kda"]:
+                        if stat_name in stats:
+                            stat_data = stats[stat_name]
+                            embed.add_field(
+                                name=stat_name.replace("_", " ").title(),
+                                value=(
+                                    f"Avg: {stat_data['avg']:.1f}\n"
+                                    f"Min: {stat_data['min']:.0f} | "
+                                    f"Max: {stat_data['max']:.0f}\n"
+                                    f"StdDev: {stat_data['stddev']:.1f}"
+                                ),
+                                inline=True,
+                            )
+
+                    # Add game count
+                    if "kills" in stats:
+                        embed.set_footer(text=f"Games: {int(stats['kills']['count'])}")
+
+                    await interaction.followup.send(embed=embed)
+
+            except Exception as e:
+                logger.exception("Error fetching stats via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
+        @self._tree.command(
+            name="game-history",
+            description="View stats from the nth most recent game",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+            game_number="Which game to view (1 = most recent, 2 = second most recent, etc.)",
+        )
+        async def game_history_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+            game_number: int = 1,
+        ) -> None:
+            """View stats from nth most recent game."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                if game_number < 1:
+                    await interaction.followup.send(
+                        "❌ Error: Game number must be 1 or greater",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                async with get_async_session() as session:
+                    player_service = PlayerService(session)
+                    player = await player_service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    stats_service = StatsAggregationService(session)
+                    game = await stats_service.get_nth_most_recent_game(player.puuid, game_number)
+
+                    if game is None:
+                        await interaction.followup.send(
+                            f"ℹ️ Game #{game_number} not found for {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Create embed with game stats
+                    result_emoji = "✅" if game.win else "❌"
+                    embed = discord.Embed(
+                        title=f"{result_emoji} Game #{game_number} - {game.champion_name}",
+                        description=f"**{riot_id}**\n{game.individual_position or 'Unknown Role'}",
+                        color=discord.Color.green() if game.win else discord.Color.red(),
+                    )
+
+                    # KDA
+                    embed.add_field(
+                        name="KDA",
+                        value=f"{game.kills}/{game.deaths}/{game.assists}\n({game.kda:.2f})",
+                        inline=True,
+                    )
+
+                    # Damage
+                    embed.add_field(
+                        name="Damage to Champions",
+                        value=f"{game.total_damage_dealt_to_champions:,}",
+                        inline=True,
+                    )
+
+                    # CS
+                    total_cs = game.total_minions_killed + game.neutral_minions_killed
+                    embed.add_field(
+                        name="CS",
+                        value=(
+                            f"{total_cs} "
+                            f"({game.total_minions_killed}+{game.neutral_minions_killed})"
+                        ),
+                        inline=True,
+                    )
+
+                    # Vision
+                    embed.add_field(
+                        name="Vision Score",
+                        value=str(game.vision_score),
+                        inline=True,
+                    )
+
+                    # Gold
+                    embed.add_field(
+                        name="Gold Earned",
+                        value=f"{game.gold_earned:,}",
+                        inline=True,
+                    )
+
+                    # Game info
+                    embed.add_field(
+                        name="Match ID",
+                        value=game.match_id,
+                        inline=False,
+                    )
+
+                    # Timestamp
+                    embed.timestamp = game.game_creation
+
+                    await interaction.followup.send(embed=embed)
+
+            except Exception as e:
+                logger.exception("Error fetching game history via Discord bot")
                 await interaction.followup.send(
                     f"❌ An error occurred: {str(e)}",
                     ephemeral=True,
