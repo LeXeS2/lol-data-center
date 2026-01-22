@@ -122,7 +122,8 @@ class TestStatsService:
         assert stats[0].avg_vision_score == 30
         assert stats[0].max_kills == 10
         assert stats[0].min_kills == 10
-        assert stats[0].stddev_kills == 0.0  # Single game has no stddev
+        # Standard deviation is 0 for a single game (division by n-1 with n=1 is undefined)
+        assert stats[0].stddev_kills == 0.0
         assert stats[0].win_rate == 100.0
 
     @pytest.mark.asyncio

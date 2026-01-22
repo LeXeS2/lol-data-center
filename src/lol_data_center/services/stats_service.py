@@ -372,12 +372,16 @@ class StatsService:
     def _calculate_stddev(self, values: Sequence[int | float], mean: float) -> float:
         """Calculate sample standard deviation.
 
+        Sample standard deviation uses Bessel's correction (dividing by n-1 instead of n)
+        to provide an unbiased estimate. This is undefined for n<2, so we return 0.0 in
+        those cases.
+
         Args:
             values: Sequence of values
             mean: Pre-calculated mean
 
         Returns:
-            Standard deviation (0.0 if less than 2 values)
+            Standard deviation, or 0.0 if fewer than 2 values (undefined)
         """
         if len(values) < 2:
             return 0.0

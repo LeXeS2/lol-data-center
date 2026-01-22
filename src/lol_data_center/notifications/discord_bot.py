@@ -34,6 +34,18 @@ class DiscordBot:
         self._tree: app_commands.CommandTree | None = None
         self._is_running = False
 
+    @staticmethod
+    def _format_damage(damage: int | float) -> str:
+        """Format damage value to 'k' notation.
+
+        Args:
+            damage: Damage amount
+
+        Returns:
+            Formatted damage string (e.g., "25.4k")
+        """
+        return f"{damage / 1000:.1f}k"
+
     async def start(self) -> None:
         """Start the Discord bot."""
         if not self._token:
@@ -360,7 +372,7 @@ class DiscordBot:
                     for champion_stat in stats[:10]:
                         kda_str = f"{champion_stat.avg_kda:.2f}"
                         cs_str = f"{champion_stat.avg_cs:.1f}"
-                        dmg_str = f"{champion_stat.avg_damage / 1000:.1f}k"
+                        dmg_str = self._format_damage(champion_stat.avg_damage)
 
                         field_value = (
                             f"**Games:** {champion_stat.game_count} | "
@@ -469,7 +481,7 @@ class DiscordBot:
                         role_emoji = role_emojis.get(role_stat.group_key, "❓")
                         kda_str = f"{role_stat.avg_kda:.2f}"
                         cs_str = f"{role_stat.avg_cs:.1f}"
-                        dmg_str = f"{role_stat.avg_damage / 1000:.1f}k"
+                        dmg_str = self._format_damage(role_stat.avg_damage)
 
                         field_value = (
                             f"**Games:** {role_stat.game_count} | "
