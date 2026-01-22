@@ -5,6 +5,7 @@ Fields are based on the official Riot API documentation.
 """
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -219,3 +220,16 @@ class MatchIdsResponse(BaseModel):
     def from_list(cls, match_ids: list[str]) -> "MatchIdsResponse":
         """Create from a list of match IDs."""
         return cls(match_ids=match_ids)
+
+
+class MatchTimelineDto(BaseModel):
+    """Match timeline data from match-v5 timeline API.
+
+    Timeline contains frame-by-frame events and participant stats at regular intervals.
+    This schema captures the raw timeline data for flexible storage and querying.
+    """
+
+    metadata: MatchMetadataDto
+    info: dict[str, Any] = Field(..., description="Timeline info with frames and events")
+
+    model_config = {"populate_by_name": True, "extra": "ignore"}
