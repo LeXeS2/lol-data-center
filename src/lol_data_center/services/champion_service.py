@@ -99,13 +99,30 @@ class ChampionService:
         """
         count = 0
         for data in champions_data:
-            await self.upsert_champion(
-                champion_id=int(data["champion_id"]),
-                name=str(data["name"]),
-                key=str(data["key"]),
-                title=str(data["title"]),
-            )
+            # Check if champion exists
+            champion_id = int(data["champion_id"])
+            champion = await self.get_champion_by_id(champion_id)
+
+            if champion is None:
+                # Create new champion
+                champion = Champion(
+                    champion_id=champion_id,
+                    name=str(data["name"]),
+                    key=str(data["key"]),
+                    title=str(data["title"]),
+                )
+                self._session.add(champion)
+                logger.info("Created new champion", champion_id=champion_id, name=data["name"])
+            else:
+                # Update existing champion
+                champion.name = str(data["name"])
+                champion.key = str(data["key"])
+                champion.title = str(data["title"])
+                logger.debug("Updated champion", champion_id=champion_id, name=data["name"])
+
             count += 1
 
+        # Commit all changes in a single transaction
+        await self._session.commit()
         logger.info("Bulk upserted champions", count=count)
         return count

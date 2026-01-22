@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models for League of Legends data."""
 
+import json
 from datetime import datetime
 from typing import Any, Optional
 
@@ -37,8 +38,6 @@ class JSONType(TypeDecorator[Any]):
         if value is None:
             return None
         if dialect.name != "postgresql":
-            import json
-
             return json.dumps(value)
         return value
 
@@ -47,8 +46,6 @@ class JSONType(TypeDecorator[Any]):
         if value is None:
             return None
         if dialect.name != "postgresql":
-            import json
-
             return json.loads(value)
         return value
 

@@ -10,6 +10,8 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
+from lol_data_center.database.models import JSONType
+
 
 # revision identifiers, used by Alembic.
 revision: str = 'a855fcbd6fae'
@@ -57,7 +59,7 @@ def upgrade() -> None:
     sa.Column('platform_id', sa.String(length=10), nullable=False),
     sa.Column('queue_id', sa.Integer(), nullable=False),
     sa.Column('tournament_code', sa.String(length=100), nullable=True),
-    sa.Column('timeline_data', lol_data_center.database.models.JSONType(), nullable=True),
+    sa.Column('timeline_data', JSONType(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
