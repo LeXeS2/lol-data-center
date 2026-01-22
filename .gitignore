@@ -208,3 +208,9 @@ marimo/_lsp/
 __marimo__/
 
 data/invalid_responses/
+
+# SQLite database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
