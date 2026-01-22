@@ -207,7 +207,35 @@ class PollingService:
                     continue
 
                 # Save match to database (only saves if doesn't exist)
-                await match_service.save_match(match_data)
+                match = await match_service.save_match(match_data)
+
+                # Fetch and store timeline data for newly saved matches
+                # Only fetch if timeline data doesn't already exist
+                if match.timeline_data is None:
+                    try:
+                        timeline_dto = await self._api_client.get_match_timeline(
+                            match_id, region
+                        )
+                        # Store the timeline info (frames and events) as JSON
+                        await match_service.update_timeline_data(match_id, timeline_dto.info)
+                        logger.debug(
+                            "Fetched and stored timeline data",
+                            match_id=match_id,
+                        )
+                    except RiotApiError as e:
+                        # Timeline fetch failures are logged but don't fail match ingestion
+                        logger.warning(
+                            "Failed to fetch timeline data",
+                            match_id=match_id,
+                            error=str(e),
+                        )
+                    except ValidationError as e:
+                        # Timeline validation failures are logged but don't fail match ingestion
+                        logger.warning(
+                            "Invalid timeline data",
+                            match_id=match_id,
+                            error=str(e),
+                        )
 
                 # Get participant data for this player
                 participant = match_data.get_participant_by_puuid(player.puuid)
