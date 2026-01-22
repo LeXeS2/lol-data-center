@@ -1118,7 +1118,7 @@ class TestStatsService:
     ) -> None:
         """Test get_recent_matches with multiple games."""
         # Create 5 match participations with different timestamps
-        base_time = datetime.now()
+        base_time = datetime.utcnow()
         for i in range(5):
             participant = MatchParticipant(
                 match_db_id=i + 1,
@@ -1214,7 +1214,7 @@ class TestStatsService:
     ) -> None:
         """Test get_recent_matches respects limit."""
         # Create 10 match participations
-        base_time = datetime.now()
+        base_time = datetime.utcnow()
         for i in range(10):
             participant = MatchParticipant(
                 match_db_id=i + 1,
