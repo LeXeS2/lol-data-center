@@ -12,6 +12,19 @@ logger = get_logger(__name__)
 class StatsAggregationService:
     """Service for computing aggregated player statistics."""
 
+    # Stats to aggregate - class constant to avoid duplication
+    STAT_FIELDS = [
+        "kills",
+        "deaths",
+        "assists",
+        "kda",
+        "total_damage_dealt_to_champions",
+        "total_minions_killed",
+        "neutral_minions_killed",
+        "vision_score",
+        "gold_earned",
+    ]
+
     def __init__(self, session: AsyncSession) -> None:
         """Initialize the stats aggregation service.
 
@@ -19,6 +32,49 @@ class StatsAggregationService:
             session: Database session
         """
         self._session = session
+
+    def _calculate_stat_aggregations(
+        self,
+        participants: list[MatchParticipant],
+    ) -> dict[str, dict[str, float]]:
+        """Calculate aggregated statistics for a list of participants.
+
+        Args:
+            participants: List of match participants
+
+        Returns:
+            Dictionary mapping stat names to aggregations (avg, min, max, stddev, count)
+        """
+        if not participants:
+            return {}
+
+        stats: dict[str, dict[str, float]] = {}
+
+        for stat_name in self.STAT_FIELDS:
+            values = [getattr(p, stat_name) for p in participants]
+
+            # Calculate aggregations
+            count = len(values)
+            avg = sum(values) / count if count > 0 else 0.0
+            min_val = float(min(values)) if values else 0.0
+            max_val = float(max(values)) if values else 0.0
+
+            # Calculate standard deviation
+            if count > 1:
+                variance = sum((x - avg) ** 2 for x in values) / (count - 1)
+                stddev = variance**0.5
+            else:
+                stddev = 0.0
+
+            stats[stat_name] = {
+                "avg": avg,
+                "min": min_val,
+                "max": max_val,
+                "stddev": stddev,
+                "count": float(count),
+            }
+
+        return stats
 
     async def get_player_stats_by_role(
         self,
@@ -43,49 +99,7 @@ class StatsAggregationService:
         result = await self._session.execute(query)
         participants = list(result.scalars().all())
 
-        if not participants:
-            return {}
-
-        # Define stats to aggregate
-        stat_fields = [
-            "kills",
-            "deaths",
-            "assists",
-            "kda",
-            "total_damage_dealt_to_champions",
-            "total_minions_killed",
-            "neutral_minions_killed",
-            "vision_score",
-            "gold_earned",
-        ]
-
-        stats: dict[str, dict[str, float]] = {}
-
-        for stat_name in stat_fields:
-            values = [getattr(p, stat_name) for p in participants]
-
-            # Calculate aggregations
-            count = len(values)
-            avg = sum(values) / count if count > 0 else 0.0
-            min_val = float(min(values)) if values else 0.0
-            max_val = float(max(values)) if values else 0.0
-
-            # Calculate standard deviation
-            if count > 1:
-                variance = sum((x - avg) ** 2 for x in values) / (count - 1)
-                stddev = variance**0.5
-            else:
-                stddev = 0.0
-
-            stats[stat_name] = {
-                "avg": avg,
-                "min": min_val,
-                "max": max_val,
-                "stddev": stddev,
-                "count": float(count),
-            }
-
-        return stats
+        return self._calculate_stat_aggregations(participants)
 
     async def get_player_stats_by_champion(
         self,
@@ -110,49 +124,7 @@ class StatsAggregationService:
         result = await self._session.execute(query)
         participants = list(result.scalars().all())
 
-        if not participants:
-            return {}
-
-        # Define stats to aggregate
-        stat_fields = [
-            "kills",
-            "deaths",
-            "assists",
-            "kda",
-            "total_damage_dealt_to_champions",
-            "total_minions_killed",
-            "neutral_minions_killed",
-            "vision_score",
-            "gold_earned",
-        ]
-
-        stats: dict[str, dict[str, float]] = {}
-
-        for stat_name in stat_fields:
-            values = [getattr(p, stat_name) for p in participants]
-
-            # Calculate aggregations
-            count = len(values)
-            avg = sum(values) / count if count > 0 else 0.0
-            min_val = float(min(values)) if values else 0.0
-            max_val = float(max(values)) if values else 0.0
-
-            # Calculate standard deviation
-            if count > 1:
-                variance = sum((x - avg) ** 2 for x in values) / (count - 1)
-                stddev = variance**0.5
-            else:
-                stddev = 0.0
-
-            stats[stat_name] = {
-                "avg": avg,
-                "min": min_val,
-                "max": max_val,
-                "stddev": stddev,
-                "count": float(count),
-            }
-
-        return stats
+        return self._calculate_stat_aggregations(participants)
 
     async def get_all_roles_stats(
         self,

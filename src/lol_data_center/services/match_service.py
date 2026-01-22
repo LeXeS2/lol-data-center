@@ -629,13 +629,33 @@ class MatchService:
         Returns:
             The saved MatchTimeline instance, or None if fetch fails
         """
+        from lol_data_center.api_client.riot_client import RiotApiError
+        from lol_data_center.api_client.validation import ValidationError
+
         try:
             timeline_data = await riot_client.get_match_timeline(match_id, region)
             return await self.save_match_timeline(match_id, timeline_data)
-        except Exception as e:
+        except RiotApiError as e:
             logger.warning(
-                "Failed to fetch/save match timeline",
+                "Riot API error fetching match timeline",
                 match_id=match_id,
+                status_code=e.status_code,
+                error=str(e),
+            )
+            return None
+        except ValidationError as e:
+            logger.warning(
+                "Timeline validation error",
+                match_id=match_id,
+                endpoint=e.endpoint,
+                error=e.message,
+            )
+            return None
+        except Exception as e:
+            logger.error(
+                "Unexpected error fetching/saving match timeline",
+                match_id=match_id,
+                error_type=type(e).__name__,
                 error=str(e),
             )
             return None
