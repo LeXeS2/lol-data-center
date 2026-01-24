@@ -1,7 +1,5 @@
 """Match data management service."""
 
-from typing import Any
-
 from scipy.stats import norm  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,7 +77,6 @@ class MatchService:
             platform_id=match_data.info.platform_id,
             queue_id=match_data.info.queue_id,
             tournament_code=match_data.info.tournament_code,
-            timeline_data=None,  # Timeline data can be added separately
         )
         self._session.add(match)
         await self._session.flush()
@@ -549,45 +546,3 @@ class MatchService:
             True if any participant has PUUID "BOT"
         """
         return any(p.puuid == "BOT" for p in match_data.info.participants)
-
-    async def update_timeline_data(
-        self,
-        match_id: str,
-        timeline_data: dict[str, Any],
-    ) -> Match | None:
-        """Update timeline data for an existing match.
-
-        Args:
-            match_id: The match ID
-            timeline_data: Timeline data as a dictionary
-
-        Returns:
-            Updated Match instance, or None if match not found
-        """
-        result = await self._session.execute(select(Match).where(Match.match_id == match_id))
-        match = result.scalar_one_or_none()
-
-        if match is None:
-            logger.warning("Match not found for timeline update", match_id=match_id)
-            return None
-
-        match.timeline_data = timeline_data
-        await self._session.commit()
-
-        logger.info("Updated match timeline data", match_id=match_id)
-        return match
-
-    async def get_timeline_data(self, match_id: str) -> dict[str, Any] | None:
-        """Get timeline data for a match.
-
-        Args:
-            match_id: The match ID
-
-        Returns:
-            Timeline data dictionary, or None if match not found or has no timeline
-        """
-        result = await self._session.execute(
-            select(Match.timeline_data).where(Match.match_id == match_id)
-        )
-        timeline = result.scalar_one_or_none()
-        return timeline

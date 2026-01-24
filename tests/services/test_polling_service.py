@@ -7,9 +7,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from lol_data_center.api_client.riot_client import RiotApiError
 from lol_data_center.events.event_bus import NewMatchEvent, get_event_bus
-from lol_data_center.schemas.riot_api import MatchMetadataDto, MatchTimelineDto
 from lol_data_center.services.match_service import MatchService
 from lol_data_center.services.polling_service import PollingService
 
@@ -80,17 +78,6 @@ class TestPollingServiceFiltering:
         classic.info.game_mode = "CLASSIC"
         mock_riot_client.get_match = AsyncMock(return_value=classic)
 
-        # Mock timeline response
-        timeline_dto = MatchTimelineDto(
-            metadata=MatchMetadataDto(
-                data_version="2",
-                match_id=match_id,
-                participants=["puuid1", "puuid2"],
-            ),
-            info={"frameInterval": 60000, "frames": []},
-        )
-        mock_riot_client.get_match_timeline = AsyncMock(return_value=timeline_dto)
-
         polling = PollingService(api_client=mock_riot_client)
 
         # Act: subscribe to events and invoke internal _poll_player with provided session
@@ -111,108 +98,3 @@ class TestPollingServiceFiltering:
         assert event_count == 1
         ms = MatchService(async_session)
         assert (await ms.match_exists(match_id)) is True
-
-    @pytest.mark.asyncio
-    async def test_polling_fetches_timeline_for_new_match(
-        self,
-        async_session: AsyncSession,
-        sample_player: TrackedPlayer,
-        sample_match_dto: MatchDto,
-        mock_riot_client: MagicMock,
-    ) -> None:
-        """Test that timeline data is fetched and stored for new matches."""
-        # Arrange: CLASSIC match with timeline
-        match_id = "EUW1_TIMELINE_TEST"
-        mock_riot_client.get_match_ids.return_value = [match_id]
-
-        classic = sample_match_dto.model_copy(deep=True)
-        classic.metadata.match_id = match_id
-        classic.info.game_mode = "CLASSIC"
-        mock_riot_client.get_match = AsyncMock(return_value=classic)
-
-        # Mock timeline response
-        timeline_info = {
-            "frameInterval": 60000,
-            "frames": [
-                {"timestamp": 0, "events": []},
-                {"timestamp": 60000, "events": [{"type": "CHAMPION_KILL"}]},
-            ],
-        }
-        timeline_dto = MatchTimelineDto(
-            metadata=MatchMetadataDto(
-                data_version="2",
-                match_id=match_id,
-                participants=["puuid1", "puuid2"],
-            ),
-            info=timeline_info,
-        )
-        mock_riot_client.get_match_timeline = AsyncMock(return_value=timeline_dto)
-
-        polling = PollingService(api_client=mock_riot_client)
-
-        # Act: poll the player
-        await polling._poll_player(sample_player, async_session)
-
-        # Assert: match saved with timeline data
-        ms = MatchService(async_session)
-        assert await ms.match_exists(match_id)
-
-        # Verify timeline data was stored
-        stored_timeline = await ms.get_timeline_data(match_id)
-        assert stored_timeline is not None
-        assert stored_timeline == timeline_info
-        assert stored_timeline["frameInterval"] == 60000
-        assert len(stored_timeline["frames"]) == 2
-
-        # Verify timeline API was called
-        mock_riot_client.get_match_timeline.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_polling_continues_on_timeline_fetch_failure(
-        self,
-        async_session: AsyncSession,
-        sample_player: TrackedPlayer,
-        sample_match_dto: MatchDto,
-        mock_riot_client: MagicMock,
-    ) -> None:
-        """Test that timeline fetch failures don't prevent match ingestion."""
-        # Arrange: CLASSIC match, but timeline fetch fails
-        match_id = "EUW1_TIMELINE_FAIL"
-        mock_riot_client.get_match_ids.return_value = [match_id]
-
-        classic = sample_match_dto.model_copy(deep=True)
-        classic.metadata.match_id = match_id
-        classic.info.game_mode = "CLASSIC"
-        mock_riot_client.get_match = AsyncMock(return_value=classic)
-
-        # Mock timeline to raise error
-        mock_riot_client.get_match_timeline = AsyncMock(
-            side_effect=RiotApiError(404, "Timeline not found", "test_url")
-        )
-
-        polling = PollingService(api_client=mock_riot_client)
-
-        # Track events
-        event_bus = get_event_bus()
-        event_count = 0
-
-        async def count_events(event: NewMatchEvent) -> None:
-            nonlocal event_count
-            event_count += 1
-
-        event_bus.subscribe(NewMatchEvent, count_events)
-        try:
-            # Act: poll the player
-            await polling._poll_player(sample_player, async_session)
-        finally:
-            event_bus.unsubscribe(NewMatchEvent, count_events)
-
-        # Assert: match still saved and event published despite timeline failure
-        assert event_count == 1
-        ms = MatchService(async_session)
-        assert await ms.match_exists(match_id)
-
-        # Timeline data should be None
-        stored_timeline = await ms.get_timeline_data(match_id)
-        assert stored_timeline is None
-

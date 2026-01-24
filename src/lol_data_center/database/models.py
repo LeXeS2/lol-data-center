@@ -1,8 +1,7 @@
 """SQLAlchemy ORM models for League of Legends data."""
 
-import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy import (
     BigInteger,
@@ -16,38 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.types import TypeDecorator
-
-
-class JSONType(TypeDecorator[Any]):
-    """Cross-database JSON type using Text for SQLite and JSON for PostgreSQL."""
-
-    impl = Text
-    cache_ok = True
-
-    def load_dialect_impl(self, dialect: Any) -> Any:
-        """Use JSON type for PostgreSQL, Text for others (SQLite)."""
-        if dialect.name == "postgresql":
-            return dialect.type_descriptor(JSON())
-        return dialect.type_descriptor(Text())
-
-    def process_bind_param(self, value: Any, dialect: Any) -> Any:
-        """Convert Python object to JSON string for SQLite."""
-        if value is None:
-            return None
-        if dialect.name != "postgresql":
-            return json.dumps(value)
-        return value
-
-    def process_result_value(self, value: Any, dialect: Any) -> Any:
-        """Convert JSON string back to Python object for SQLite."""
-        if value is None:
-            return None
-        if dialect.name != "postgresql":
-            return json.loads(value)
-        return value
 
 
 class Base(DeclarativeBase):
@@ -97,27 +65,6 @@ class TrackedPlayer(Base):
         return f"<TrackedPlayer(id={self.id}, riot_id={self.riot_id}, region={self.region})>"
 
 
-class Champion(Base):
-    """Champion static data mapping."""
-
-    __tablename__ = "champions"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    champion_id: Mapped[int] = mapped_column(Integer, unique=True, nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
-    key: Mapped[str] = mapped_column(String(50), nullable=False)  # Internal name
-    title: Mapped[str] = mapped_column(String(100), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
-
-    def __repr__(self) -> str:
-        return f"<Champion(id={self.champion_id}, name={self.name})>"
-
-
 class Match(Base):
     """League of Legends match data."""
 
@@ -137,7 +84,6 @@ class Match(Base):
     platform_id: Mapped[str] = mapped_column(String(10), nullable=False)
     queue_id: Mapped[int] = mapped_column(Integer, nullable=False)
     tournament_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    timeline_data: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, nullable=False
     )

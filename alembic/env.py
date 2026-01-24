@@ -1,7 +1,6 @@
 """Alembic migration environment configuration."""
 
 import asyncio
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -13,10 +12,6 @@ from lol_data_center.database.models import Base
 
 # this is the Alembic Config object, for access to values within the .ini file
 config = context.config
-
-# Override sqlalchemy.url from environment if available
-if os.environ.get("DATABASE_URL"):
-    config.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
 
 # Interpret the config file for Python logging
 if config.config_file_name is not None:
