@@ -15,6 +15,7 @@ from lol_data_center.schemas.riot_api import (
     AccountDto,
     MatchDto,
     SummonerDto,
+    TimelineDto,
 )
 
 logger = get_logger(__name__)
@@ -450,6 +451,29 @@ class RiotApiClient:
             MatchDto,
             data,
             "match-v5/match",
+            self._build_url(region.value, endpoint),
+        )
+
+    async def get_match_timeline(
+        self,
+        match_id: str,
+        region: Region = Region.EUROPE,
+    ) -> TimelineDto:
+        """Get match timeline by match ID.
+
+        Args:
+            match_id: Match ID (format: REGION_GAMEID)
+            region: Regional routing value
+
+        Returns:
+            Timeline data with frames and events
+        """
+        endpoint = f"/lol/match/v5/matches/{match_id}/timeline"
+        data = await self._request(region.value, endpoint)
+        return await validate_response(
+            TimelineDto,
+            data,
+            "match-v5/timeline",
             self._build_url(region.value, endpoint),
         )
 

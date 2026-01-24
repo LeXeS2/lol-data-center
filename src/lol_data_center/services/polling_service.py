@@ -206,8 +206,10 @@ class PollingService:
                     )
                     continue
 
-                # Save match to database (only saves if doesn't exist)
-                await match_service.save_match(match_data)
+                # Save match to database with timeline (only saves if doesn't exist)
+                await match_service.save_match_with_timeline(
+                    match_data, self._api_client, region, filter_events=True
+                )
 
                 # Get participant data for this player
                 participant = match_data.get_participant_by_puuid(player.puuid)

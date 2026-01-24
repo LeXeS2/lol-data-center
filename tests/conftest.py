@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from lol_data_center.database.models import Base, PlayerRecord, TrackedPlayer
+from lol_data_center.database.models import Base, Match, PlayerRecord, TrackedPlayer
 from lol_data_center.schemas.riot_api import (
     AccountDto,
     MatchDto,
@@ -105,6 +105,69 @@ async def sample_player(async_session: AsyncSession) -> TrackedPlayer:
     await async_session.commit()
 
     return player
+
+
+@pytest_asyncio.fixture
+async def tracked_player(async_session: AsyncSession) -> TrackedPlayer:
+    """Create first tracked player for timeline tests."""
+    player = TrackedPlayer(
+        puuid="tracked-player-1-puuid",
+        game_name="Player1",
+        tag_line="TAG1",
+        region="europe",
+        summoner_id=None,
+        account_id=None,
+        profile_icon_id=1,
+        summoner_level=100,
+        polling_enabled=True,
+    )
+    async_session.add(player)
+    await async_session.commit()
+    return player
+
+
+@pytest_asyncio.fixture
+async def tracked_player_2(async_session: AsyncSession) -> TrackedPlayer:
+    """Create second tracked player for timeline tests."""
+    player = TrackedPlayer(
+        puuid="tracked-player-2-puuid",
+        game_name="Player2",
+        tag_line="TAG2",
+        region="europe",
+        summoner_id=None,
+        account_id=None,
+        profile_icon_id=2,
+        summoner_level=90,
+        polling_enabled=True,
+    )
+    async_session.add(player)
+    await async_session.commit()
+    return player
+
+
+@pytest_asyncio.fixture
+async def match(async_session: AsyncSession) -> Match:
+    """Create a match for timeline tests."""
+    from datetime import datetime
+
+    match_obj = Match(
+        match_id="EUW1_1234567890",
+        data_version="2",
+        game_creation=datetime(2026, 1, 24, 12, 0, 0),
+        game_duration=1800,
+        game_end_timestamp=datetime(2026, 1, 24, 12, 30, 0),
+        game_mode="CLASSIC",
+        game_name="",
+        game_type="MATCHED_GAME",
+        game_version="14.1.123.456",
+        map_id=11,
+        platform_id="EUW1",
+        queue_id=420,
+        tournament_code=None,
+    )
+    async_session.add(match_obj)
+    await async_session.commit()
+    return match_obj
 
 
 @pytest.fixture

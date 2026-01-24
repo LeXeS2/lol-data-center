@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     DateTime,
@@ -287,3 +288,143 @@ class InvalidApiResponse(Base):
 
     def __repr__(self) -> str:
         return f"<InvalidApiResponse(id={self.id}, endpoint={self.endpoint})>"
+
+
+class MatchTimeline(Base):
+    """Timeline data for a match.
+
+    Stores condensed timeline information:
+    - All events as JSON (optionally filtered to tracked players)
+    - Metadata about frame interval and game
+
+    Participant frame stats are stored separately in TimelineParticipantFrame.
+    """
+
+    __tablename__ = "match_timelines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    match_db_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("matches.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    match_id: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
+
+    # Metadata
+    data_version: Mapped[str] = mapped_column(String(10), nullable=False)
+    frame_interval: Mapped[int] = mapped_column(Integer, nullable=False)  # milliseconds
+    game_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    # All events as JSON array (optionally filtered to tracked players)
+    events: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+
+    # Whether events are filtered to tracked players only
+    events_filtered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    participant_frames: Mapped[list["TimelineParticipantFrame"]] = relationship(
+        "TimelineParticipantFrame", back_populates="timeline", cascade="all, delete-orphan"
+    )
+
+    def __repr__(self) -> str:
+        return f"<MatchTimeline(match_id={self.match_id}, frames={len(self.events)})>"
+
+
+class TimelineParticipantFrame(Base):
+    """Per-participant stats for each timeline frame.
+
+    Only stores data for tracked players to reduce storage size.
+    Each row represents one participant's stats at one specific timestamp.
+    """
+
+    __tablename__ = "timeline_participant_frames"
+    __table_args__ = (
+        UniqueConstraint(
+            "timeline_id", "timestamp", "participant_id", name="uq_timeline_participant_frame"
+        ),
+        Index("ix_timeline_puuid_timestamp", "puuid", "timestamp"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    timeline_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("match_timelines.id", ondelete="CASCADE"), nullable=False
+    )
+    match_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    puuid: Mapped[str] = mapped_column(String(78), nullable=False, index=True)
+    player_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("tracked_players.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Frame metadata
+    timestamp: Mapped[int] = mapped_column(Integer, nullable=False)  # milliseconds into game
+    participant_id: Mapped[int] = mapped_column(Integer, nullable=False)  # 1-10
+
+    # Participant stats at this timestamp
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    current_gold: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_gold: Mapped[int] = mapped_column(Integer, nullable=False)
+    gold_per_second: Mapped[int] = mapped_column(Integer, nullable=False)
+    xp: Mapped[int] = mapped_column(Integer, nullable=False)
+    minions_killed: Mapped[int] = mapped_column(Integer, nullable=False)
+    jungle_minions_killed: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Position
+    position_x: Mapped[int] = mapped_column(Integer, nullable=False)
+    position_y: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Control time
+    time_enemy_spent_controlled: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Damage stats (nullable - not present in all frames)
+    magic_damage_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    magic_damage_done_to_champions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    magic_damage_taken: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    physical_damage_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    physical_damage_done_to_champions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    physical_damage_taken: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_damage_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_damage_done_to_champions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_damage_taken: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    true_damage_done: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    true_damage_done_to_champions: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    true_damage_taken: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Champion stats (nullable - not present in all frames)
+    ability_haste: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ability_power: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    armor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    armor_pen: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    armor_pen_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attack_damage: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attack_speed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bonus_armor_pen_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bonus_magic_pen_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cc_reduction: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cooldown_reduction: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    health: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    health_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    health_regen: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    lifesteal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    magic_pen: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    magic_pen_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    magic_resist: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    movement_speed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    omnivamp: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    physical_vamp: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    power: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    power_max: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    power_regen: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    spell_vamp: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Relationships
+    timeline: Mapped["MatchTimeline"] = relationship(
+        "MatchTimeline", back_populates="participant_frames"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<TimelineParticipantFrame(match_id={self.match_id}, "
+            f"timestamp={self.timestamp}, participant_id={self.participant_id})>"
+        )

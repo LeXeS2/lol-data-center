@@ -219,3 +219,100 @@ class MatchIdsResponse(BaseModel):
     def from_list(cls, match_ids: list[str]) -> "MatchIdsResponse":
         """Create from a list of match IDs."""
         return cls(match_ids=match_ids)
+
+
+# Timeline DTOs
+
+
+class ParticipantFrameDto(BaseModel):
+    """Per-participant stats at a specific timestamp in the timeline.
+
+    Contains all stats like gold, xp, position, damage stats, etc. for a single
+    participant at a specific frame interval (typically 1 minute).
+    """
+
+    participant_id: int = Field(..., alias="participantId")
+    level: int = 0
+    current_gold: int = Field(0, alias="currentGold")
+    total_gold: int = Field(0, alias="totalGold")
+    gold_per_second: int = Field(0, alias="goldPerSecond")
+    xp: int = 0
+    minions_killed: int = Field(0, alias="minionsKilled")
+    jungle_minions_killed: int = Field(0, alias="jungleMinionsKilled")
+    position_x: int = Field(0, alias="x")
+    position_y: int = Field(0, alias="y")
+    time_enemy_spent_controlled: int = Field(0, alias="timeEnemySpentControlled")
+
+    # Damage stats (may not be present in all frames)
+    damage_stats: dict[str, int] | None = Field(None, alias="damageStats")
+    champion_stats: dict[str, int] | None = Field(None, alias="championStats")
+
+    model_config = {"populate_by_name": True, "extra": "ignore"}
+
+
+class EventDto(BaseModel):
+    """Timeline event (kills, items, level ups, etc).
+
+    Events have highly variable structures depending on type.
+    We store the full event as-is since each type has different fields.
+    Common fields are extracted here, the rest goes into the raw JSON.
+    """
+
+    type: str
+    timestamp: int
+    participant_id: int | None = Field(None, alias="participantId")
+
+    # Optional fields that appear in various event types
+    killer_id: int | None = Field(None, alias="killerId")
+    victim_id: int | None = Field(None, alias="victimId")
+    assisting_participant_ids: list[int] | None = Field(None, alias="assistingParticipantIds")
+    item_id: int | None = Field(None, alias="itemId")
+    skill_slot: int | None = Field(None, alias="skillSlot")
+    level_up_type: str | None = Field(None, alias="levelUpType")
+    creator_id: int | None = Field(None, alias="creatorId")
+    ward_type: str | None = Field(None, alias="wardType")
+
+    model_config = {"populate_by_name": True, "extra": "allow"}  # Allow extra fields
+
+
+class FrameDto(BaseModel):
+    """Single timeline frame (snapshot at a specific time).
+
+    Contains participant stats and events that occurred during this frame interval.
+    """
+
+    timestamp: int
+    participant_frames: dict[str, ParticipantFrameDto] = Field(..., alias="participantFrames")
+    events: list[EventDto] = []
+
+    model_config = {"populate_by_name": True, "extra": "ignore"}
+
+
+class TimelineInfoDto(BaseModel):
+    """Timeline info section containing frames and metadata."""
+
+    frame_interval: int = Field(..., alias="frameInterval")  # Typically 60000 (1 minute)
+    frames: list[FrameDto]
+    game_id: int = Field(..., alias="gameId")
+    participants: list[dict[str, object]] = []  # participantId to puuid mapping
+
+    model_config = {"populate_by_name": True, "extra": "ignore"}
+
+
+class TimelineMetadataDto(BaseModel):
+    """Timeline metadata."""
+
+    data_version: str = Field(..., alias="dataVersion")
+    match_id: str = Field(..., alias="matchId")
+    participants: list[str]  # List of PUUIDs
+
+    model_config = {"populate_by_name": True}
+
+
+class TimelineDto(BaseModel):
+    """Complete timeline data from match-v5 timeline endpoint."""
+
+    metadata: TimelineMetadataDto
+    info: TimelineInfoDto
+
+    model_config = {"populate_by_name": True}

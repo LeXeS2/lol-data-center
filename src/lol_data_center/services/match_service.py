@@ -1,5 +1,7 @@
 """Match data management service."""
 
+from typing import TYPE_CHECKING
+
 from scipy.stats import norm  # type: ignore[import-untyped]
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +15,9 @@ from lol_data_center.schemas.riot_api import (
     MatchMetadataDto,
     ParticipantDto,
 )
+
+if TYPE_CHECKING:
+    from lol_data_center.api_client.riot_client import Region, RiotApiClient
 
 logger = get_logger(__name__)
 
@@ -183,6 +188,67 @@ class MatchService:
             game_mode=match.game_mode,
             participants=len(match_data.info.participants),
         )
+
+        return match
+
+    async def save_match_with_timeline(
+        self,
+        match_data: MatchDto,
+        api_client: "RiotApiClient",
+        region: "Region",
+        filter_events: bool = True,
+    ) -> Match:
+        """Save a match with timeline data.
+
+        This method saves the match and then fetches and saves timeline data.
+        If the match already exists, timeline data will still be fetched if missing.
+
+        Args:
+            match_data: Validated match data from the API
+            api_client: Riot API client to fetch timeline data
+            region: Region for API requests
+            filter_events: If True, only save events involving tracked players
+
+        Returns:
+            The saved Match instance
+        """
+        from lol_data_center.api_client.validation import ValidationError
+        from lol_data_center.services.timeline_service import TimelineService
+
+        # Save match data first
+        match = await self.save_match(match_data)
+
+        # Check if timeline already exists
+        timeline_service = TimelineService(self._session)
+        if await timeline_service.timeline_exists(match_data.metadata.match_id):
+            logger.debug(
+                "Timeline already exists, skipping fetch",
+                match_id=match_data.metadata.match_id,
+            )
+            return match
+
+        # Fetch and save timeline
+        try:
+            timeline_data = await api_client.get_match_timeline(
+                match_data.metadata.match_id, region
+            )
+            await timeline_service.save_timeline(
+                timeline_data,
+                match.id,
+                filter_events=filter_events,
+            )
+        except ValidationError as e:
+            logger.error(
+                "Failed to save timeline - validation error",
+                match_id=match_data.metadata.match_id,
+                error=str(e),
+            )
+        except Exception as e:
+            logger.error(
+                "Failed to save timeline",
+                match_id=match_data.metadata.match_id,
+                error=str(e),
+            )
 
         return match
 
