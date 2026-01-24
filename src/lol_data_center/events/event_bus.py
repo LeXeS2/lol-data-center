@@ -8,7 +8,7 @@ import asyncio
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 from lol_data_center.logging_config import get_logger
@@ -37,7 +37,7 @@ class NewMatchEvent:
     match_id: str
     match_data: MatchDto
     participant_data: ParticipantDto
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 # Type alias for event handlers

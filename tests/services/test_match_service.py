@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import pytest
@@ -141,7 +141,7 @@ class TestPercentileCalculation:
         match = Match(
             match_id="SINGLE_TEST",
             data_version="2",
-            game_creation=datetime.utcnow(),
+            game_creation=datetime.now(UTC),
             game_duration=1800,
             game_mode="CLASSIC",
             game_type="MATCHED_GAME",
@@ -245,7 +245,7 @@ class TestPercentileCalculation:
         match = Match(
             match_id="TEST_123",
             data_version="2",
-            game_creation=datetime.utcnow(),
+            game_creation=datetime.now(UTC),
             game_duration=1800,
             game_mode="CLASSIC",
             game_type="MATCHED_GAME",
@@ -365,7 +365,7 @@ class TestPercentileCalculation:
         match = Match(
             match_id="TEST_456",
             data_version="2",
-            game_creation=datetime.utcnow(),
+            game_creation=datetime.now(UTC),
             game_duration=1800,
             game_mode="CLASSIC",
             game_type="MATCHED_GAME",
@@ -486,7 +486,7 @@ class TestPercentileCalculation:
         match = Match(
             match_id="TEST_789",
             data_version="2",
-            game_creation=datetime.utcnow(),
+            game_creation=datetime.now(UTC),
             game_duration=1800,
             game_mode="CLASSIC",
             game_type="MATCHED_GAME",
@@ -611,7 +611,7 @@ class TestPercentileCalculation:
         match = Match(
             match_id="TEST_ABC",
             data_version="2",
-            game_creation=datetime.utcnow(),
+            game_creation=datetime.now(UTC),
             game_duration=1800,
             game_mode="CLASSIC",
             game_type="MATCHED_GAME",
@@ -745,7 +745,7 @@ class TestPercentileCalculation:
             match = Match(
                 match_id=f"TEST_DEF_{i}",
                 data_version="2",
-                game_creation=datetime.utcnow(),
+                game_creation=datetime.now(UTC),
                 game_duration=1800,
                 game_mode="CLASSIC",
                 game_type="MATCHED_GAME",

@@ -1,7 +1,7 @@
 """Response validation and error storage."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypeVar
 
@@ -108,13 +108,13 @@ async def store_invalid_response(
         Path to the stored file
     """
     settings = get_settings()
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S_%f")
     safe_endpoint = endpoint.replace("/", "_").replace(":", "_")
     filename = f"{timestamp}_{safe_endpoint}.json"
     filepath = settings.invalid_responses_dir / filename
 
     error_data = {
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "endpoint": endpoint,
         "url": url,
         "status_code": status_code,

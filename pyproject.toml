@@ -48,6 +48,9 @@ packages = ["src/lol_data_center"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore:'audioop' is deprecated:DeprecationWarning:discord.player",
+]
 
 [tool.mypy]
 python_version = "3.11"

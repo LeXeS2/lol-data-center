@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -262,7 +262,7 @@ class TestConsecutiveCondition:
         win: bool,
     ) -> None:
         """Helper to create previous match records."""
-        base_time = datetime.utcnow()
+        base_time = datetime.now(UTC)
 
         for i in range(count):
             # Create matches in reverse chronological order (most recent first)
@@ -374,7 +374,7 @@ class TestConsecutiveCondition:
         kda: float,
     ) -> None:
         """Helper to create previous match records with specific KDA."""
-        base_time = datetime.utcnow()
+        base_time = datetime.now(UTC)
 
         for i in range(count):
             game_creation = base_time - timedelta(hours=i + 1)

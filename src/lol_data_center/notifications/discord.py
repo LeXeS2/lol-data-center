@@ -1,6 +1,6 @@
 """Discord webhook integration for notifications."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import aiohttp
@@ -67,7 +67,7 @@ class DiscordNotifier:
                 "title": title,
                 "description": content,
                 "color": color,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
             if thumbnail_url:
