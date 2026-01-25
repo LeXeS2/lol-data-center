@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lol_data_center.database.engine import get_async_session
 from lol_data_center.services.match_service import MatchService
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
     from lol_data_center.schemas.riot_api import MatchDto
 
 
@@ -18,25 +19,35 @@ class TestMatchConcurrency:
     """Tests for concurrent match operations."""
 
     @pytest.mark.asyncio
-    async def test_concurrent_save_match(self, sample_match_dto: MatchDto) -> None:
+    async def test_concurrent_save_match(
+        self, sample_match_dto: MatchDto, async_engine: AsyncEngine
+    ) -> None:
         """Test that concurrent saves of the same match don't cause errors.
 
         This simulates the edge case where multiple users add players who played
         the same match, and the polling service tries to save the match concurrently.
         """
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        # Create session factory with the test engine
+        session_factory = async_sessionmaker(
+            bind=async_engine,
+            expire_on_commit=False,
+        )
 
         async def save_match_task() -> None:
             """Task that saves the match in a separate session."""
-            async with get_async_session() as session:
+            async with session_factory() as session:
                 service = MatchService(session)
                 await service.save_match(sample_match_dto)
+                await session.commit()
 
         # Run multiple concurrent saves
         tasks = [save_match_task() for _ in range(5)]
         await asyncio.gather(*tasks)
 
         # Verify the match was saved exactly once
-        async with get_async_session() as session:
+        async with session_factory() as session:
             service = MatchService(session)
             exists = await service.match_exists(sample_match_dto.metadata.match_id)
             assert exists is True
