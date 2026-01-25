@@ -20,6 +20,120 @@ from lol_data_center.services.player_service import PlayerService
 logger = get_logger(__name__)
 
 
+class ValidationError(Exception):
+    """Custom exception for Discord bot validation errors."""
+
+    pass
+
+
+def parse_riot_id(riot_id: str) -> tuple[str, str]:
+    """Parse and validate Riot ID format.
+
+    Args:
+        riot_id: Riot ID in format GameName#TAG
+
+    Returns:
+        Tuple of (game_name, tag_line)
+
+    Raises:
+        ValidationError: If format is invalid
+    """
+    if "#" not in riot_id:
+        raise ValidationError("Riot ID must be in format GameName#TAG")
+    return riot_id.rsplit("#", 1)
+
+
+def parse_region(region_str: str) -> Region:
+    """Parse and validate region string.
+
+    Args:
+        region_str: Region string (case-insensitive)
+
+    Returns:
+        Region enum value
+
+    Raises:
+        ValidationError: If region is invalid
+    """
+    try:
+        return Region(region_str.lower())
+    except ValueError:
+        valid = ", ".join([r.value for r in Region])
+        raise ValidationError(f"Invalid region: {region_str}\nValid regions: {valid}")
+
+
+def parse_platform(platform_str: str) -> Platform:
+    """Parse and validate platform string.
+
+    Args:
+        platform_str: Platform string (case-insensitive)
+
+    Returns:
+        Platform enum value
+
+    Raises:
+        ValidationError: If platform is invalid
+    """
+    try:
+        return Platform(platform_str.lower())
+    except ValueError:
+        valid = ", ".join([p.value for p in Platform])
+        raise ValidationError(f"Invalid platform: {platform_str}\nValid platforms: {valid}")
+
+
+async def send_error_response(
+    interaction: discord.Interaction,
+    error: Exception,
+    command_name: str | None = None,
+) -> None:
+    """Send formatted error response to user.
+
+    Args:
+        interaction: Discord interaction
+        error: Exception that occurred
+        command_name: Name of command for logging (optional)
+    """
+    if isinstance(error, ValidationError):
+        await interaction.followup.send(f"❌ Error: {str(error)}", ephemeral=True)
+    else:
+        if command_name:
+            logger.exception(f"Error {command_name} via Discord bot")
+        else:
+            logger.exception("Discord bot error")
+        await interaction.followup.send(
+            f"❌ An error occurred: {str(error)}",
+            ephemeral=True,
+        )
+
+
+async def get_player_or_error(
+    interaction: discord.Interaction,
+    service: PlayerService,
+    game_name: str,
+    tag_line: str,
+    riot_id: str,
+) -> TrackedPlayer | None:
+    """Get player by riot_id or send error response.
+
+    Args:
+        interaction: Discord interaction
+        service: PlayerService instance
+        game_name: Player's game name
+        tag_line: Player's tag line
+        riot_id: Full Riot ID (for error messages)
+
+    Returns:
+        TrackedPlayer if found, None if not found (error already sent to user)
+    """
+    player = await service.get_player_by_riot_id(game_name, tag_line)
+    if player is None:
+        await interaction.followup.send(
+            f"❌ Error: Player not found: {riot_id}",
+            ephemeral=True,
+        )
+    return player
+
+
 class DiscordBot:
     """Discord bot with slash commands for interacting with the application."""
 
@@ -103,36 +217,10 @@ class DiscordBot:
             await interaction.response.defer(thinking=True)
 
             try:
-                # Parse Riot ID
-                if "#" not in riot_id:
-                    await interaction.followup.send(
-                        "❌ Error: Riot ID must be in format GameName#TAG",
-                        ephemeral=True,
-                    )
-                    return
-
-                game_name, tag_line = riot_id.rsplit("#", 1)
-
-                # Validate region
-                try:
-                    region_enum = Region(region.lower())
-                except ValueError:
-                    await interaction.followup.send(
-                        f"❌ Error: Invalid region: {region}\n"
-                        "Valid regions: americas, asia, europe, sea",
-                        ephemeral=True,
-                    )
-                    return
-
-                # Validate platform
-                try:
-                    platform_enum = Platform(platform.lower())
-                except ValueError:
-                    await interaction.followup.send(
-                        f"❌ Error: Invalid platform: {platform}",
-                        ephemeral=True,
-                    )
-                    return
+                # Parse and validate inputs
+                game_name, tag_line = parse_riot_id(riot_id)
+                region_enum = parse_region(region)
+                platform_enum = parse_platform(platform)
 
                 # Add player to database and start backfill
                 async with get_async_session() as session:
@@ -185,17 +273,10 @@ class DiscordBot:
                         user=str(interaction.user),
                     )
 
-            except ValueError as e:
-                await interaction.followup.send(
-                    f"❌ Error: {str(e)}",
-                    ephemeral=True,
-                )
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
             except Exception as e:
-                logger.exception("Error adding player via Discord bot")
-                await interaction.followup.send(
-                    f"❌ An error occurred: {str(e)}",
-                    ephemeral=True,
-                )
+                await send_error_response(interaction, e, "add-player")
 
         @self._tree.command(
             name="remove-player",
@@ -210,26 +291,17 @@ class DiscordBot:
             await interaction.response.defer(thinking=True)
 
             try:
-                # Parse Riot ID
-                if "#" not in riot_id:
-                    await interaction.followup.send(
-                        "❌ Error: Riot ID must be in format GameName#TAG",
-                        ephemeral=True,
-                    )
-                    return
-
-                game_name, tag_line = riot_id.rsplit("#", 1)
+                # Parse and validate Riot ID
+                game_name, tag_line = parse_riot_id(riot_id)
 
                 # Remove player from database
                 async with get_async_session() as session:
                     service = PlayerService(session)
-                    player = await service.get_player_by_riot_id(game_name, tag_line)
+                    player = await get_player_or_error(
+                        interaction, service, game_name, tag_line, riot_id
+                    )
 
                     if player is None:
-                        await interaction.followup.send(
-                            f"❌ Error: Player not found: {riot_id}",
-                            ephemeral=True,
-                        )
                         return
 
                     await service.remove_player(player.puuid)
@@ -243,12 +315,10 @@ class DiscordBot:
                         user=str(interaction.user),
                     )
 
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
             except Exception as e:
-                logger.exception("Error removing player via Discord bot")
-                await interaction.followup.send(
-                    f"❌ An error occurred: {str(e)}",
-                    ephemeral=True,
-                )
+                await send_error_response(interaction, e, "remove-player")
 
         @self._tree.command(
             name="list-players",
@@ -297,11 +367,7 @@ class DiscordBot:
                     await interaction.followup.send(embed=embed)
 
             except Exception as e:
-                logger.exception("Error listing players via Discord bot")
-                await interaction.followup.send(
-                    f"❌ An error occurred: {str(e)}",
-                    ephemeral=True,
-                )
+                await send_error_response(interaction, e, "list-players")
 
         @self._tree.command(
             name="player-map-position",
@@ -318,29 +384,20 @@ class DiscordBot:
             await interaction.response.defer(thinking=True)
 
             try:
-                # Parse Riot ID
-                if "#" not in riot_id:
-                    await interaction.followup.send(
-                        "❌ Error: Riot ID must be in format GameName#TAG",
-                        ephemeral=True,
-                    )
-                    return
-
-                game_name, tag_line = riot_id.rsplit("#", 1)
+                # Parse and validate Riot ID
+                game_name, tag_line = parse_riot_id(riot_id)
 
                 async with get_async_session() as session:
                     # Get player
                     service = PlayerService(session)
-                    player = await service.get_player_by_riot_id(game_name, tag_line)
+                    player = await get_player_or_error(
+                        interaction, service, game_name, tag_line, riot_id
+                    )
 
                     if player is None:
-                        await interaction.followup.send(
-                            f"❌ Error: Player not found: {riot_id}",
-                            ephemeral=True,
-                        )
                         return
 
-                    # Defer for longer operation
+                    # Log operation
                     logger.info(
                         "Generating heatmap for player",
                         puuid=player.puuid,
@@ -376,12 +433,10 @@ class DiscordBot:
                         user=str(interaction.user),
                     )
 
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
             except Exception as e:
-                logger.exception("Error generating player stats via Discord bot")
-                await interaction.followup.send(
-                    f"❌ An error occurred: {str(e)}",
-                    ephemeral=True,
-                )
+                await send_error_response(interaction, e, "player-map-position")
 
     async def _backfill_and_notify(
         self,
