@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session
-from lol_data_center.database.models import MatchParticipant, TrackedPlayer
+from lol_data_center.database.models import DiscordUserRegistration, MatchParticipant, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.map_visualization_service import MapVisualizationService
@@ -40,7 +40,8 @@ def parse_riot_id(riot_id: str) -> tuple[str, str]:
     """
     if "#" not in riot_id:
         raise ValidationError("Riot ID must be in format GameName#TAG")
-    return riot_id.rsplit("#", 1)
+    parts = riot_id.rsplit("#", 1)
+    return (parts[0], parts[1])
 
 
 def parse_region(region_str: str) -> Region:
@@ -59,7 +60,7 @@ def parse_region(region_str: str) -> Region:
         return Region(region_str.lower())
     except ValueError:
         valid = ", ".join([r.value for r in Region])
-        raise ValidationError(f"Invalid region: {region_str}\nValid regions: {valid}")
+        raise ValidationError(f"Invalid region: {region_str}\nValid regions: {valid}") from None
 
 
 def parse_platform(platform_str: str) -> Platform:
@@ -78,7 +79,9 @@ def parse_platform(platform_str: str) -> Platform:
         return Platform(platform_str.lower())
     except ValueError:
         valid = ", ".join([p.value for p in Platform])
-        raise ValidationError(f"Invalid platform: {platform_str}\nValid platforms: {valid}")
+        raise ValidationError(
+            f"Invalid platform: {platform_str}\nValid platforms: {valid}"
+        ) from None
 
 
 async def send_error_response(
@@ -104,6 +107,27 @@ async def send_error_response(
             f"❌ An error occurred: {str(error)}",
             ephemeral=True,
         )
+
+
+async def send_riot_id_missing_error(
+    interaction: discord.Interaction,
+    command_name: str,
+) -> None:
+    """Send error message when Riot ID is missing and user not registered.
+
+    Args:
+        interaction: Discord interaction
+        command_name: Name of the command (e.g., "player-map-position")
+    """
+    await interaction.followup.send(
+        f"❌ Error: No Riot ID provided and you don't have a registered account.\n\n"
+        f"**Option 1:** Use this command with your Riot ID:\n"
+        f"`/{command_name} riot_id:YourName#TAG`\n\n"
+        f"**Option 2:** Register your account to skip entering it every time:\n"
+        f"`/register riot_id:YourName#TAG`\n"
+        f"After registering, you can use `/{command_name}` without any parameters.",
+        ephemeral=True,
+    )
 
 
 async def get_player_or_error(
@@ -132,6 +156,106 @@ async def get_player_or_error(
             ephemeral=True,
         )
     return player
+
+
+async def get_registered_riot_id(
+    session: AsyncSession,
+    discord_user_id: str,
+) -> tuple[str, str, str] | None:
+    """Get registered Riot ID for a Discord user.
+
+    Args:
+        session: Database session
+        discord_user_id: Discord user ID
+
+    Returns:
+        Tuple of (game_name, tag_line, riot_id) if registered, None otherwise
+    """
+    result = await session.execute(
+        select(DiscordUserRegistration).where(
+            DiscordUserRegistration.discord_user_id == discord_user_id
+        )
+    )
+    registration = result.scalar_one_or_none()
+    if registration:
+        return (registration.game_name, registration.tag_line, registration.riot_id)
+    return None
+
+
+async def register_discord_user(
+    session: AsyncSession,
+    discord_user_id: str,
+    puuid: str,
+    game_name: str,
+    tag_line: str,
+) -> DiscordUserRegistration:
+    """Register or update Discord user's Riot ID.
+
+    Args:
+        session: Database session
+        discord_user_id: Discord user ID
+        puuid: Player's PUUID
+        game_name: Player's game name
+        tag_line: Player's tag line
+
+    Returns:
+        The created or updated registration
+    """
+    # Check if already registered
+    result = await session.execute(
+        select(DiscordUserRegistration).where(
+            DiscordUserRegistration.discord_user_id == discord_user_id
+        )
+    )
+    registration = result.scalar_one_or_none()
+
+    if registration:
+        # Update existing registration
+        registration.puuid = puuid
+        registration.game_name = game_name
+        registration.tag_line = tag_line
+        from datetime import UTC, datetime
+
+        registration.updated_at = datetime.now(UTC)
+    else:
+        # Create new registration
+        registration = DiscordUserRegistration(
+            discord_user_id=discord_user_id,
+            puuid=puuid,
+            game_name=game_name,
+            tag_line=tag_line,
+        )
+        session.add(registration)
+
+    await session.commit()
+    return registration
+
+
+async def unregister_discord_user(
+    session: AsyncSession,
+    discord_user_id: str,
+) -> bool:
+    """Remove Discord user's Riot ID registration.
+
+    Args:
+        session: Database session
+        discord_user_id: Discord user ID
+
+    Returns:
+        True if registration was removed, False if not found
+    """
+    result = await session.execute(
+        select(DiscordUserRegistration).where(
+            DiscordUserRegistration.discord_user_id == discord_user_id
+        )
+    )
+    registration = result.scalar_one_or_none()
+
+    if registration:
+        await session.delete(registration)
+        await session.commit()
+        return True
+    return False
 
 
 class DiscordBot:
@@ -227,9 +351,7 @@ class DiscordBot:
                     service = PlayerService(session)
 
                     # Check if player already exists
-                    existing_player = await service.get_player_by_riot_id(
-                        game_name, tag_line
-                    )
+                    existing_player = await service.get_player_by_riot_id(game_name, tag_line)
                     if existing_player:
                         await interaction.followup.send(
                             f"⚠️ Player **{riot_id}** is already being tracked.",
@@ -262,9 +384,7 @@ class DiscordBot:
 
                     # Start background task for backfill
                     asyncio.create_task(
-                        self._backfill_and_notify(
-                            interaction, player, region_enum, session
-                        )
+                        self._backfill_and_notify(interaction, player, region_enum, session)
                     )
 
                     logger.info(
@@ -370,28 +490,133 @@ class DiscordBot:
                 await send_error_response(interaction, e, "list-players")
 
         @self._tree.command(
-            name="player-map-position",
-            description="Generate a map position heatmap for a tracked player",
+            name="register",
+            description="Register your Riot account with the bot",
         )
         @app_commands.describe(
-            riot_id="Player's Riot ID in format: GameName#TAG",
+            riot_id="Your Riot ID in format: GameName#TAG",
         )
-        async def player_map_position_command(
+        async def register_command(
             interaction: discord.Interaction,
             riot_id: str,
         ) -> None:
-            """Generate player map position heatmap."""
-            await interaction.response.defer(thinking=True)
+            """Register user's Riot ID."""
+            await interaction.response.defer(ephemeral=True, thinking=True)
 
             try:
                 # Parse and validate Riot ID
                 game_name, tag_line = parse_riot_id(riot_id)
 
                 async with get_async_session() as session:
+                    # Verify player exists in tracked players
+                    service = PlayerService(session)
+                    player = await service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player **{riot_id}** is not being tracked.\n"
+                            f"Use `/add-player`.",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Register the user
+                    await register_discord_user(
+                        session,
+                        str(interaction.user.id),
+                        player.puuid,
+                        game_name,
+                        tag_line,
+                    )
+
+                    await interaction.followup.send(
+                        f"✅ Successfully registered as **{riot_id}**!\n"
+                        f"You can now use commands without entering your Riot ID.",
+                        ephemeral=True,
+                    )
+                    logger.info(
+                        "User registered Riot ID via Discord bot",
+                        discord_user=str(interaction.user),
+                        riot_id=riot_id,
+                    )
+
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
+            except Exception as e:
+                await send_error_response(interaction, e, "register")
+
+        @self._tree.command(
+            name="unregister",
+            description="Remove your registered Riot account",
+        )
+        async def unregister_command(
+            interaction: discord.Interaction,
+        ) -> None:
+            """Unregister user's Riot ID."""
+            await interaction.response.defer(ephemeral=True, thinking=True)
+
+            try:
+                async with get_async_session() as session:
+                    removed = await unregister_discord_user(
+                        session,
+                        str(interaction.user.id),
+                    )
+
+                    if removed:
+                        await interaction.followup.send(
+                            "✅ Successfully unregistered your Riot ID.\n"
+                            "You will need to provide your Riot ID when using commands.",
+                            ephemeral=True,
+                        )
+                        logger.info(
+                            "User unregistered Riot ID via Discord bot",
+                            discord_user=str(interaction.user),
+                        )
+                    else:
+                        await interaction.followup.send(
+                            "ℹ️ You don't have a registered Riot ID.",
+                            ephemeral=True,
+                        )
+
+            except Exception as e:
+                await send_error_response(interaction, e, "unregister")
+
+        @self._tree.command(
+            name="player-map-position",
+            description="Generate a map position heatmap for a tracked player",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG (optional if registered)",
+        )
+        async def player_map_position_command(
+            interaction: discord.Interaction,
+            riot_id: str | None = None,
+        ) -> None:
+            """Generate player map position heatmap."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                async with get_async_session() as session:
+                    # Determine which Riot ID to use
+                    if riot_id:
+                        # Use provided Riot ID
+                        game_name, tag_line = parse_riot_id(riot_id)
+                        used_riot_id = riot_id
+                    else:
+                        # Try to use registered Riot ID
+                        registration = await get_registered_riot_id(
+                            session,
+                            str(interaction.user.id),
+                        )
+                        if registration is None:
+                            await send_riot_id_missing_error(interaction, "player-map-position")
+                            return
+                        game_name, tag_line, used_riot_id = registration
+
                     # Get player
                     service = PlayerService(session)
                     player = await get_player_or_error(
-                        interaction, service, game_name, tag_line, riot_id
+                        interaction, service, game_name, tag_line, used_riot_id
                     )
 
                     if player is None:
@@ -401,7 +626,7 @@ class DiscordBot:
                     logger.info(
                         "Generating heatmap for player",
                         puuid=player.puuid,
-                        riot_id=riot_id,
+                        riot_id=used_riot_id,
                     )
 
                     # Generate heatmap asynchronously
@@ -412,7 +637,7 @@ class DiscordBot:
                         )
                     except ValueError:
                         await interaction.followup.send(
-                            f"❌ No position data found for **{riot_id}**.\n"
+                            f"❌ No position data found for **{used_riot_id}**.\n"
                             "Make sure the player has tracked matches with timeline data.",
                             ephemeral=True,
                         )
@@ -420,7 +645,7 @@ class DiscordBot:
 
                     # Send heatmap as file
                     await interaction.followup.send(
-                        f"📍 Map Position Heatmap for **{riot_id}**",
+                        f"📍 Map Position Heatmap for **{used_riot_id}**",
                         file=discord.File(
                             BytesIO(heatmap_image),
                             filename=f"heatmap_{player.puuid}.png",
@@ -429,7 +654,7 @@ class DiscordBot:
 
                     logger.info(
                         "Heatmap sent via Discord bot",
-                        riot_id=riot_id,
+                        riot_id=used_riot_id,
                         user=str(interaction.user),
                     )
 

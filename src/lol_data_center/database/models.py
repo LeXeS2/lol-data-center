@@ -46,7 +46,10 @@ class TrackedPlayer(Base):
         DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
     )
 
     # Relationships
@@ -261,7 +264,10 @@ class PlayerRecord(Base):
     total_losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), onupdate=lambda: datetime.now(UTC), nullable=False
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
     )
 
     # Relationships
@@ -330,6 +336,41 @@ class MatchTimeline(Base):
 
     def __repr__(self) -> str:
         return f"<MatchTimeline(match_id={self.match_id}, frames={len(self.events)})>"
+
+
+class DiscordUserRegistration(Base):
+    """Maps Discord user IDs to Riot accounts for bot commands."""
+
+    __tablename__ = "discord_user_registrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    discord_user_id: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True
+    )
+    puuid: Mapped[str] = mapped_column(String(78), nullable=False)
+    game_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tag_line: Mapped[str] = mapped_column(String(10), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+
+    @property
+    def riot_id(self) -> str:
+        """Get the full Riot ID (GameName#TagLine)."""
+        return f"{self.game_name}#{self.tag_line}"
+
+    def __repr__(self) -> str:
+        return (
+            f"<DiscordUserRegistration("
+            f"discord_user_id={self.discord_user_id}, "
+            f"riot_id={self.riot_id})>"
+        )
 
 
 class TimelineParticipantFrame(Base):
