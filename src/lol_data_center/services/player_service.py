@@ -90,7 +90,7 @@ class PlayerService:
             account_id=summoner.account_id,  # May be None if API no longer provides it
             profile_icon_id=summoner.profile_icon_id,
             summoner_level=summoner.summoner_level,
-            polling_enabled=True,
+            polling_enabled=False,
         )
 
         self._session.add(player)

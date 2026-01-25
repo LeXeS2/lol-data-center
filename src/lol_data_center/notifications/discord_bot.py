@@ -699,6 +699,7 @@ class DiscordBot:
 
                 if latest_match_id:
                     player_service = PlayerService(session)
+                    await player_service.toggle_polling(player.puuid, True)
                     await player_service.update_last_polled(player, latest_match_id)
 
             # Send success notification

@@ -17,6 +17,7 @@ from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session, init_db
 from lol_data_center.database.models import MatchParticipant
 from lol_data_center.logging_config import configure_logging, get_logger
+from lol_data_center.services import player_service
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
 
@@ -135,6 +136,7 @@ def add_player(
                     latest_match_id = result.scalar_one_or_none()
 
                     if latest_match_id:
+                        await service.toggle_polling(player.puuid, True)
                         await service.update_last_polled(player, latest_match_id)
                         console.print("  Set last match ID to prevent re-polling")
 
