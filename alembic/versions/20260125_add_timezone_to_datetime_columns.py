@@ -80,6 +80,14 @@ def upgrade() -> None:
         existing_nullable=False,
         nullable=False,
     )
+    op.alter_column(
+        "match_participants",
+        "created_at",
+        existing_type=sa.DateTime(),
+        type_=sa.DateTime(timezone=True),
+        existing_nullable=False,
+        nullable=False,
+    )
 
     # Alter invalid_api_responses table
     op.alter_column(
@@ -186,6 +194,14 @@ def downgrade() -> None:
     op.alter_column(
         "match_participants",
         "game_creation",
+        existing_type=sa.DateTime(timezone=True),
+        type_=sa.DateTime(),
+        existing_nullable=False,
+        nullable=False,
+    )
+    op.alter_column(
+        "match_participants",
+        "created_at",
         existing_type=sa.DateTime(timezone=True),
         type_=sa.DateTime(),
         existing_nullable=False,
