@@ -40,13 +40,13 @@ class TrackedPlayer(Base):
     profile_icon_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     summoner_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
     polling_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_polled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_match_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
@@ -77,9 +77,9 @@ class Match(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     match_id: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     data_version: Mapped[str] = mapped_column(String(10), nullable=False)
-    game_creation: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    game_creation: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     game_duration: Mapped[int] = mapped_column(Integer, nullable=False)  # seconds
-    game_end_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    game_end_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     game_mode: Mapped[str] = mapped_column(String(50), nullable=False)
     game_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     game_type: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -89,7 +89,7 @@ class Match(Base):
     queue_id: Mapped[int] = mapped_column(Integer, nullable=False)
     tournament_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
     # Relationships
@@ -119,7 +119,7 @@ class MatchParticipant(Base):
     player_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("tracked_players.id", ondelete="SET NULL"), nullable=True
     )
-    game_creation: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    game_creation: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Player info
     summoner_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -264,7 +264,7 @@ class PlayerRecord(Base):
     total_losses: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
@@ -289,7 +289,7 @@ class InvalidApiResponse(Base):
     response_body: Mapped[str] = mapped_column(Text, nullable=False)
     error_message: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False, index=True
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False, index=True
     )
 
     def __repr__(self) -> str:
@@ -326,7 +326,7 @@ class MatchTimeline(Base):
     events_filtered: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
     # Relationships
@@ -351,10 +351,10 @@ class DiscordUserRegistration(Base):
     game_name: Mapped[str] = mapped_column(String(100), nullable=False)
     tag_line: Mapped[str] = mapped_column(String(10), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC), nullable=False
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
         nullable=False,
