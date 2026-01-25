@@ -4,7 +4,7 @@ These schemas validate and type the JSON responses from the Riot API.
 Fields are based on the official Riot API documentation.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -172,13 +172,13 @@ class MatchInfoDto(BaseModel):
     @property
     def game_creation_datetime(self) -> datetime:
         """Convert game creation timestamp to datetime."""
-        return datetime.fromtimestamp(self.game_creation / 1000)
+        return datetime.fromtimestamp(self.game_creation / 1000, tz=UTC)
 
     @property
     def game_end_datetime(self) -> datetime | None:
         """Convert game end timestamp to datetime."""
         if self.game_end_timestamp:
-            return datetime.fromtimestamp(self.game_end_timestamp / 1000)
+            return datetime.fromtimestamp(self.game_end_timestamp / 1000, tz=UTC)
         return None
 
 
