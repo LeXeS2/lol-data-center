@@ -1,6 +1,7 @@
 """Discord bot integration for interactive commands."""
 
 import asyncio
+from io import BytesIO
 
 import discord
 from discord import app_commands
@@ -13,6 +14,7 @@ from lol_data_center.database.engine import get_async_session
 from lol_data_center.database.models import MatchParticipant, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.backfill_service import BackfillService
+from lol_data_center.services.map_visualization_service import MapVisualizationService
 from lol_data_center.services.player_service import PlayerService
 
 logger = get_logger(__name__)
@@ -296,6 +298,86 @@ class DiscordBot:
 
             except Exception as e:
                 logger.exception("Error listing players via Discord bot")
+                await interaction.followup.send(
+                    f"❌ An error occurred: {str(e)}",
+                    ephemeral=True,
+                )
+
+        @self._tree.command(
+            name="player-map-position",
+            description="Generate a map position heatmap for a tracked player",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG",
+        )
+        async def player_map_position_command(
+            interaction: discord.Interaction,
+            riot_id: str,
+        ) -> None:
+            """Generate player map position heatmap."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Parse Riot ID
+                if "#" not in riot_id:
+                    await interaction.followup.send(
+                        "❌ Error: Riot ID must be in format GameName#TAG",
+                        ephemeral=True,
+                    )
+                    return
+
+                game_name, tag_line = riot_id.rsplit("#", 1)
+
+                async with get_async_session() as session:
+                    # Get player
+                    service = PlayerService(session)
+                    player = await service.get_player_by_riot_id(game_name, tag_line)
+
+                    if player is None:
+                        await interaction.followup.send(
+                            f"❌ Error: Player not found: {riot_id}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Defer for longer operation
+                    logger.info(
+                        "Generating heatmap for player",
+                        puuid=player.puuid,
+                        riot_id=riot_id,
+                    )
+
+                    # Generate heatmap asynchronously
+                    viz_service = MapVisualizationService(session)
+                    try:
+                        heatmap_image = await viz_service.generate_player_heatmap_with_map_overlay(
+                            player.puuid
+                        )
+                    except ValueError:
+                        await interaction.followup.send(
+                            f"❌ No position data found for **{riot_id}**.\n"
+                            "Make sure the player has tracked matches with timeline data.",
+                            ephemeral=True,
+                        )
+                        return
+
+                    # Send heatmap as file
+                    await interaction.followup.send(
+                        f"📍 Map Position Heatmap for **{riot_id}**",
+                        file=discord.File(
+                            BytesIO(heatmap_image),
+                            filename=f"heatmap_{player.puuid}.png",
+                        ),
+                    )
+
+                    logger.info(
+                        "Heatmap sent via Discord bot",
+                        riot_id=riot_id,
+                        user=str(interaction.user),
+                    )
+
+            except Exception as e:
+                logger.exception("Error generating player stats via Discord bot")
                 await interaction.followup.send(
                     f"❌ An error occurred: {str(e)}",
                     ephemeral=True,
