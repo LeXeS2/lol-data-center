@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 from scipy.stats import norm  # type: ignore[import-untyped]
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -50,6 +52,9 @@ class MatchService:
     async def save_match(self, match_data: MatchDto) -> Match:
         """Save a match and all participants to the database.
 
+        This method is safe for concurrent execution. If multiple processes try to save
+        the same match simultaneously, the database will handle the conflict gracefully.
+
         Args:
             match_data: Validated match data from the API
 
@@ -67,129 +72,159 @@ class MatchService:
             )
             return result.scalar_one()
 
-        # Create match record
-        match = Match(
-            match_id=match_data.metadata.match_id,
-            data_version=match_data.metadata.data_version,
-            game_creation=match_data.info.game_creation_datetime,
-            game_duration=match_data.info.game_duration,
-            game_end_timestamp=match_data.info.game_end_datetime,
-            game_mode=match_data.info.game_mode,
-            game_name=match_data.info.game_name,
-            game_type=match_data.info.game_type,
-            game_version=match_data.info.game_version,
-            map_id=match_data.info.map_id,
-            platform_id=match_data.info.platform_id,
-            queue_id=match_data.info.queue_id,
-            tournament_code=match_data.info.tournament_code,
-        )
-        self._session.add(match)
-        await self._session.flush()
+        # Prepare match data
+        match_values = {
+            "match_id": match_data.metadata.match_id,
+            "data_version": match_data.metadata.data_version,
+            "game_creation": match_data.info.game_creation_datetime,
+            "game_duration": match_data.info.game_duration,
+            "game_end_timestamp": match_data.info.game_end_datetime,
+            "game_mode": match_data.info.game_mode,
+            "game_name": match_data.info.game_name,
+            "game_type": match_data.info.game_type,
+            "game_version": match_data.info.game_version,
+            "map_id": match_data.info.map_id,
+            "platform_id": match_data.info.platform_id,
+            "queue_id": match_data.info.queue_id,
+            "tournament_code": match_data.info.tournament_code,
+        }
 
-        # Create participant records
-        for participant in match_data.info.participants:
-            # Check if this participant is a tracked player
-            player_result = await self._session.execute(
-                select(TrackedPlayer.id).where(TrackedPlayer.puuid == participant.puuid)
+        try:
+            # Use PostgreSQL INSERT ... ON CONFLICT DO NOTHING for match
+            stmt = insert(Match).values(**match_values)
+            stmt = stmt.on_conflict_do_nothing(index_elements=["match_id"])
+            await self._session.execute(stmt)
+            await self._session.flush()
+
+            # Fetch the match (either just inserted or already existing)
+            result = await self._session.execute(
+                select(Match).where(Match.match_id == match_data.metadata.match_id)
             )
-            player_id = player_result.scalar_one_or_none()
+            match = result.scalar_one()
 
-            match_participant = MatchParticipant(
-                match_db_id=match.id,
+            # Create participant records using ON CONFLICT for each participant
+            for participant in match_data.info.participants:
+                # Check if this participant is a tracked player
+                player_result = await self._session.execute(
+                    select(TrackedPlayer.id).where(TrackedPlayer.puuid == participant.puuid)
+                )
+                player_id = player_result.scalar_one_or_none()
+
+                participant_values = {
+                    "match_db_id": match.id,
+                    "match_id": match.match_id,
+                    "puuid": participant.puuid,
+                    "player_id": player_id,
+                    "game_creation": match.game_creation,
+                    # Player info
+                    "summoner_name": participant.summoner_name,
+                    "summoner_id": participant.summoner_id,
+                    "riot_id_game_name": participant.riot_id_game_name,
+                    "riot_id_tagline": participant.riot_id_tagline,
+                    "profile_icon": participant.profile_icon,
+                    "summoner_level": participant.summoner_level,
+                    # Champion & Role
+                    "champion_id": participant.champion_id,
+                    "champion_name": participant.champion_name,
+                    "champion_level": participant.champ_level,
+                    "team_id": participant.team_id,
+                    "team_position": participant.team_position,
+                    "individual_position": participant.individual_position,
+                    "lane": participant.lane,
+                    "role": participant.role,
+                    # Core Stats
+                    "kills": participant.kills,
+                    "deaths": participant.deaths,
+                    "assists": participant.assists,
+                    "kda": participant.kda,
+                    # Combat Stats
+                    "total_damage_dealt": participant.total_damage_dealt,
+                    "total_damage_dealt_to_champions": participant.total_damage_dealt_to_champions,
+                    "total_damage_taken": participant.total_damage_taken,
+                    "damage_self_mitigated": participant.damage_self_mitigated,
+                    "largest_killing_spree": participant.largest_killing_spree,
+                    "largest_multi_kill": participant.largest_multi_kill,
+                    "killing_sprees": participant.killing_sprees,
+                    "double_kills": participant.double_kills,
+                    "triple_kills": participant.triple_kills,
+                    "quadra_kills": participant.quadra_kills,
+                    "penta_kills": participant.penta_kills,
+                    # Economy
+                    "gold_earned": participant.gold_earned,
+                    "gold_spent": participant.gold_spent,
+                    "total_minions_killed": participant.total_minions_killed,
+                    "neutral_minions_killed": participant.neutral_minions_killed,
+                    # Vision
+                    "vision_score": participant.vision_score,
+                    "wards_placed": participant.wards_placed,
+                    "wards_killed": participant.wards_killed,
+                    "vision_wards_bought_in_game": participant.vision_wards_bought_in_game,
+                    # Objectives
+                    "turret_kills": participant.turret_kills,
+                    "turret_takedowns": participant.turret_takedowns,
+                    "inhibitor_kills": participant.inhibitor_kills,
+                    "inhibitor_takedowns": participant.inhibitor_takedowns,
+                    "baron_kills": participant.baron_kills,
+                    "dragon_kills": participant.dragon_kills,
+                    "objective_stolen": participant.objectives_stolen,
+                    # Utility
+                    "total_heal": participant.total_heal,
+                    "total_heals_on_teammates": participant.total_heals_on_teammates,
+                    "total_damage_shielded_on_teammates": participant.total_damage_shielded_on_teammates,
+                    "total_time_cc_dealt": participant.total_time_cc_dealt,
+                    "time_ccing_others": participant.time_ccing_others,
+                    # Game State
+                    "win": participant.win,
+                    "first_blood_kill": participant.first_blood_kill,
+                    "first_blood_assist": participant.first_blood_assist,
+                    "first_tower_kill": participant.first_tower_kill,
+                    "first_tower_assist": participant.first_tower_assist,
+                    "game_ended_in_surrender": participant.game_ended_in_surrender,
+                    "game_ended_in_early_surrender": participant.game_ended_in_early_surrender,
+                    "time_played": participant.time_played,
+                    # Items
+                    "item0": participant.item0,
+                    "item1": participant.item1,
+                    "item2": participant.item2,
+                    "item3": participant.item3,
+                    "item4": participant.item4,
+                    "item5": participant.item5,
+                    "item6": participant.item6,
+                    # Spells
+                    "summoner1_id": participant.summoner1_id,
+                    "summoner2_id": participant.summoner2_id,
+                }
+
+                # Use ON CONFLICT DO NOTHING for participant
+                participant_stmt = insert(MatchParticipant).values(**participant_values)
+                participant_stmt = participant_stmt.on_conflict_do_nothing(
+                    constraint="uq_match_participant"
+                )
+                await self._session.execute(participant_stmt)
+
+            await self._session.commit()
+
+            logger.info(
+                "Saved match",
                 match_id=match.match_id,
-                puuid=participant.puuid,
-                player_id=player_id,
-                game_creation=match.game_creation,
-                # Player info
-                summoner_name=participant.summoner_name,
-                summoner_id=participant.summoner_id,
-                riot_id_game_name=participant.riot_id_game_name,
-                riot_id_tagline=participant.riot_id_tagline,
-                profile_icon=participant.profile_icon,
-                summoner_level=participant.summoner_level,
-                # Champion & Role
-                champion_id=participant.champion_id,
-                champion_name=participant.champion_name,
-                champion_level=participant.champ_level,
-                team_id=participant.team_id,
-                team_position=participant.team_position,
-                individual_position=participant.individual_position,
-                lane=participant.lane,
-                role=participant.role,
-                # Core Stats
-                kills=participant.kills,
-                deaths=participant.deaths,
-                assists=participant.assists,
-                kda=participant.kda,
-                # Combat Stats
-                total_damage_dealt=participant.total_damage_dealt,
-                total_damage_dealt_to_champions=participant.total_damage_dealt_to_champions,
-                total_damage_taken=participant.total_damage_taken,
-                damage_self_mitigated=participant.damage_self_mitigated,
-                largest_killing_spree=participant.largest_killing_spree,
-                largest_multi_kill=participant.largest_multi_kill,
-                killing_sprees=participant.killing_sprees,
-                double_kills=participant.double_kills,
-                triple_kills=participant.triple_kills,
-                quadra_kills=participant.quadra_kills,
-                penta_kills=participant.penta_kills,
-                # Economy
-                gold_earned=participant.gold_earned,
-                gold_spent=participant.gold_spent,
-                total_minions_killed=participant.total_minions_killed,
-                neutral_minions_killed=participant.neutral_minions_killed,
-                # Vision
-                vision_score=participant.vision_score,
-                wards_placed=participant.wards_placed,
-                wards_killed=participant.wards_killed,
-                vision_wards_bought_in_game=participant.vision_wards_bought_in_game,
-                # Objectives
-                turret_kills=participant.turret_kills,
-                turret_takedowns=participant.turret_takedowns,
-                inhibitor_kills=participant.inhibitor_kills,
-                inhibitor_takedowns=participant.inhibitor_takedowns,
-                baron_kills=participant.baron_kills,
-                dragon_kills=participant.dragon_kills,
-                objective_stolen=participant.objectives_stolen,
-                # Utility
-                total_heal=participant.total_heal,
-                total_heals_on_teammates=participant.total_heals_on_teammates,
-                total_damage_shielded_on_teammates=participant.total_damage_shielded_on_teammates,
-                total_time_cc_dealt=participant.total_time_cc_dealt,
-                time_ccing_others=participant.time_ccing_others,
-                # Game State
-                win=participant.win,
-                first_blood_kill=participant.first_blood_kill,
-                first_blood_assist=participant.first_blood_assist,
-                first_tower_kill=participant.first_tower_kill,
-                first_tower_assist=participant.first_tower_assist,
-                game_ended_in_surrender=participant.game_ended_in_surrender,
-                game_ended_in_early_surrender=participant.game_ended_in_early_surrender,
-                time_played=participant.time_played,
-                # Items
-                item0=participant.item0,
-                item1=participant.item1,
-                item2=participant.item2,
-                item3=participant.item3,
-                item4=participant.item4,
-                item5=participant.item5,
-                item6=participant.item6,
-                # Spells
-                summoner1_id=participant.summoner1_id,
-                summoner2_id=participant.summoner2_id,
+                game_mode=match.game_mode,
+                participants=len(match_data.info.participants),
             )
-            self._session.add(match_participant)
 
-        await self._session.commit()
+            return match
 
-        logger.info(
-            "Saved match",
-            match_id=match.match_id,
-            game_mode=match.game_mode,
-            participants=len(match_data.info.participants),
-        )
-
-        return match
+        except IntegrityError as e:
+            # Rollback and try to fetch existing match as fallback
+            await self._session.rollback()
+            logger.warning(
+                "IntegrityError while saving match, fetching existing",
+                match_id=match_data.metadata.match_id,
+                error=str(e),
+            )
+            result = await self._session.execute(
+                select(Match).where(Match.match_id == match_data.metadata.match_id)
+            )
+            return result.scalar_one()
 
     async def save_match_with_timeline(
         self,
