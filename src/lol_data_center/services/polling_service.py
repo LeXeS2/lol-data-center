@@ -132,11 +132,17 @@ class PollingService:
         )
 
         try:
-            # Get recent match IDs
+            # Get recent match IDs, using last_polled_at as start_time filter
+            start_time = None
+            if player.last_polled_at is not None:
+                # Convert datetime to epoch seconds for Riot API
+                start_time = int(player.last_polled_at.timestamp())
+
             match_ids = await self._api_client.get_match_ids(
                 puuid=player.puuid,
                 region=region,
                 count=20,
+                start_time=start_time,
             )
         except RiotApiError as e:
             logger.warning(
@@ -159,10 +165,6 @@ class PollingService:
         new_match_count = 0
 
         for match_id in match_ids:
-            # Stop if we've reached a match we've already processed
-            if match_id == player.last_match_id:
-                break
-
             # Check if match already exists in database
             match_data = None
             if await match_service.match_exists(match_id):
@@ -254,9 +256,8 @@ class PollingService:
                 )
                 continue
 
-        # Update last polled timestamp
-        if match_ids:
-            await player_service.update_last_polled(player, match_ids[0])
+        # Update last polled timestamp (don't update last_match_id anymore)
+        await player_service.update_last_polled(player)
 
         if new_match_count > 0:
             logger.info(

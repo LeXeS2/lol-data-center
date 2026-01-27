@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock
 
@@ -98,3 +99,94 @@ class TestPollingServiceFiltering:
         assert event_count == 1
         ms = MatchService(async_session)
         assert (await ms.match_exists(match_id)) is True
+
+    @pytest.mark.asyncio
+    async def test_polling_uses_datetime_filter(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
+        """Test that polling uses last_polled_at as start_time filter."""
+        # Arrange: Set last_polled_at to a specific time
+        last_polled = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
+        sample_player.last_polled_at = last_polled
+
+        match_id = "EUW1_DATETIME_TEST_1"
+        mock_riot_client.get_match_ids.return_value = [match_id]
+
+        classic = sample_match_dto.model_copy(deep=True)
+        classic.metadata.match_id = match_id
+        classic.info.game_mode = "CLASSIC"
+        mock_riot_client.get_match = AsyncMock(return_value=classic)
+
+        polling = PollingService(api_client=mock_riot_client)
+
+        # Act
+        event_bus = get_event_bus()
+        event_count = 0
+
+        async def count_events(event: NewMatchEvent) -> None:
+            nonlocal event_count
+            event_count += 1
+
+        event_bus.subscribe(NewMatchEvent, count_events)
+        try:
+            await polling._poll_player(sample_player, async_session)
+        finally:
+            event_bus.unsubscribe(NewMatchEvent, count_events)
+
+        # Assert: get_match_ids was called with start_time parameter
+        mock_riot_client.get_match_ids.assert_called_once()
+        call_args = mock_riot_client.get_match_ids.call_args
+        assert call_args is not None
+        assert call_args.kwargs["start_time"] == int(last_polled.timestamp())
+
+        # Assert: match was processed
+        assert event_count == 1
+
+    @pytest.mark.asyncio
+    async def test_polling_without_last_polled_at(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
+        """Test that polling works when last_polled_at is None."""
+        # Arrange: Ensure last_polled_at is None
+        sample_player.last_polled_at = None
+
+        match_id = "EUW1_NO_DATETIME_1"
+        mock_riot_client.get_match_ids.return_value = [match_id]
+
+        classic = sample_match_dto.model_copy(deep=True)
+        classic.metadata.match_id = match_id
+        classic.info.game_mode = "CLASSIC"
+        mock_riot_client.get_match = AsyncMock(return_value=classic)
+
+        polling = PollingService(api_client=mock_riot_client)
+
+        # Act
+        event_bus = get_event_bus()
+        event_count = 0
+
+        async def count_events(event: NewMatchEvent) -> None:
+            nonlocal event_count
+            event_count += 1
+
+        event_bus.subscribe(NewMatchEvent, count_events)
+        try:
+            await polling._poll_player(sample_player, async_session)
+        finally:
+            event_bus.unsubscribe(NewMatchEvent, count_events)
+
+        # Assert: get_match_ids was called with start_time=None
+        mock_riot_client.get_match_ids.assert_called_once()
+        call_args = mock_riot_client.get_match_ids.call_args
+        assert call_args is not None
+        assert call_args.kwargs["start_time"] is None
+
+        # Assert: match was processed
+        assert event_count == 1
