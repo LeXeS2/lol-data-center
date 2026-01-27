@@ -588,10 +588,14 @@ class DiscordBot:
         )
         @app_commands.describe(
             riot_id="Player's Riot ID in format: GameName#TAG (optional if registered)",
+            role="Optional role filter (TOP, JUNGLE, MIDDLE, BOTTOM, UTILITY)",
+            champion="Optional champion name filter",
         )
         async def player_map_position_command(
             interaction: discord.Interaction,
             riot_id: str | None = None,
+            role: str | None = None,
+            champion: str | None = None,
         ) -> None:
             """Generate player map position heatmap."""
             await interaction.response.defer(thinking=True)
@@ -633,13 +637,19 @@ class DiscordBot:
                     # Generate heatmap asynchronously
                     viz_service = MapVisualizationService(session)
                     try:
-                        heatmap_image = await viz_service.generate_player_heatmap_with_map_overlay(
-                            player.puuid
+                        await viz_service.validate_filters(
+                            player.puuid,
+                            role=role,
+                            champion=champion,
                         )
-                    except ValueError:
+                        heatmap_image = await viz_service.generate_player_heatmap_with_map_overlay(
+                            player.puuid,
+                            role=role,
+                            champion=champion,
+                        )
+                    except ValueError as err:
                         await interaction.followup.send(
-                            f"❌ No position data found for **{used_riot_id}**.\n"
-                            "Make sure the player has tracked matches with timeline data.",
+                            f"❌ {err}",
                             ephemeral=True,
                         )
                         return
