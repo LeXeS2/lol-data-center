@@ -10,14 +10,11 @@ import typer
 from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
-from sqlalchemy import desc, select
 
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session, init_db
-from lol_data_center.database.models import MatchParticipant
 from lol_data_center.logging_config import configure_logging, get_logger
-from lol_data_center.services import player_service
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.player_service import PlayerService
 
@@ -124,21 +121,11 @@ def add_player(
                 console.print("\n[bold green]✓[/bold green] Backfill complete!")
                 console.print(f"  Total matches saved: {saved_count}")
 
-                # Step 3: Update last_match_id to prevent re-processing
+                # Step 3: Enable polling and set last_polled_at
                 if saved_count > 0:
-                    # Refresh player to get the latest match from database
-                    result = await session.execute(
-                        select(MatchParticipant.match_id)
-                        .where(MatchParticipant.puuid == player.puuid)
-                        .order_by(desc(MatchParticipant.game_creation))
-                        .limit(1)
-                    )
-                    latest_match_id = result.scalar_one_or_none()
-
-                    if latest_match_id:
-                        await service.toggle_polling(player.puuid, True)
-                        await service.update_last_polled(player, latest_match_id)
-                        console.print("  Set last match ID to prevent re-polling")
+                    await service.toggle_polling(player.puuid, True)
+                    await service.update_last_polled(player)
+                    console.print("  Set last polled timestamp to prevent re-polling")
 
             except ValueError as e:
                 console.print(f"[bold red]Error:[/bold red] {e}")

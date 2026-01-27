@@ -5,17 +5,18 @@ from io import BytesIO
 
 import discord
 from discord import app_commands
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session
-from lol_data_center.database.models import DiscordUserRegistration, MatchParticipant, TrackedPlayer
+from lol_data_center.database.models import DiscordUserRegistration, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.map_visualization_service import MapVisualizationService
 from lol_data_center.services.player_service import PlayerService
+from lol_data_center.services.stats_service import StatsService
 
 logger = get_logger(__name__)
 
@@ -663,6 +664,116 @@ class DiscordBot:
             except Exception as e:
                 await send_error_response(interaction, e, "player-map-position")
 
+        @self._tree.command(
+            name="show-stats",
+            description="Show ranked statistics for a player in the current season",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG (optional if registered)",
+        )
+        async def show_stats_command(
+            interaction: discord.Interaction,
+            riot_id: str | None = None,
+        ) -> None:
+            """Show player ranked statistics for current season."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                async with get_async_session() as session:
+                    # Determine which Riot ID to use
+                    if riot_id:
+                        # Use provided Riot ID
+                        game_name, tag_line = parse_riot_id(riot_id)
+                        used_riot_id = riot_id
+                    else:
+                        # Try to use registered Riot ID
+                        registration = await get_registered_riot_id(
+                            session,
+                            str(interaction.user.id),
+                        )
+                        if registration is None:
+                            await send_riot_id_missing_error(interaction, "show-stats")
+                            return
+                        game_name, tag_line, used_riot_id = registration
+
+                    # Get player
+                    service = PlayerService(session)
+                    player = await get_player_or_error(
+                        interaction, service, game_name, tag_line, used_riot_id
+                    )
+
+                    if player is None:
+                        return
+
+                    # Get player statistics
+                    stats_service = StatsService(session)
+                    try:
+                        stats = await stats_service.get_player_stats(player.puuid)
+                    except ValueError:
+                        await interaction.followup.send(
+                            f"❌ No ranked games found for **{used_riot_id}** "
+                            "in the current season.",
+                            ephemeral=True,
+                        )
+                        logger.info(
+                            "No ranked games for player",
+                            puuid=player.puuid,
+                            riot_id=used_riot_id,
+                        )
+                        return
+
+                    # Create embed with statistics
+                    embed = discord.Embed(
+                        title=f"📊 Ranked Stats for {used_riot_id}",
+                        description=f"Season {stats_service.get_current_season()} Statistics",
+                        color=discord.Color.blue(),
+                    )
+
+                    # Add win rate and games played
+                    embed.add_field(
+                        name="🎮 Games Played",
+                        value=str(stats.total_games),
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="🏆 Wins",
+                        value=f"{stats.total_wins} ({stats.win_rate:.1f}%)",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="💔 Losses",
+                        value=str(stats.total_games - stats.total_wins),
+                        inline=True,
+                    )
+
+                    # Add top 3 champions
+                    if stats.top_champions:
+                        champions_text = "\n".join(
+                            f"{i + 1}. **{champ}** - {games} games"
+                            for i, (champ, games) in enumerate(stats.top_champions)
+                        )
+                        embed.add_field(
+                            name="🔥 Top Champions",
+                            value=champions_text,
+                            inline=False,
+                        )
+
+                    embed.set_footer(text="Ranked Solo/Duo & Flex games only")
+
+                    await interaction.followup.send(embed=embed)
+
+                    logger.info(
+                        "Stats sent via Discord bot",
+                        riot_id=used_riot_id,
+                        user=str(interaction.user),
+                        games=stats.total_games,
+                    )
+
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
+            except Exception as e:
+                await send_error_response(interaction, e, "show-stats")
+
     async def _backfill_and_notify(
         self,
         interaction: discord.Interaction,
@@ -687,20 +798,11 @@ class DiscordBot:
                 region=region,
             )
 
-            # Update last_match_id to prevent re-processing
+            # Enable polling and set last_polled_at
             if saved_count > 0:
-                result = await session.execute(
-                    select(MatchParticipant.match_id)
-                    .where(MatchParticipant.puuid == player.puuid)
-                    .order_by(desc(MatchParticipant.game_creation))
-                    .limit(1)
-                )
-                latest_match_id = result.scalar_one_or_none()
-
-                if latest_match_id:
-                    player_service = PlayerService(session)
-                    await player_service.toggle_polling(player.puuid, True)
-                    await player_service.update_last_polled(player, latest_match_id)
+                player_service = PlayerService(session)
+                await player_service.toggle_polling(player.puuid, True)
+                await player_service.update_last_polled(player)
 
             # Send success notification
             embed = discord.Embed(
