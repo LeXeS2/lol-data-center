@@ -209,8 +209,8 @@ class TimelineService:
                     xp=participant_frame.xp,
                     minions_killed=participant_frame.minions_killed,
                     jungle_minions_killed=participant_frame.jungle_minions_killed,
-                    position_x=participant_frame.position_x,
-                    position_y=participant_frame.position_y,
+                    position_x=participant_frame.position.x,
+                    position_y=participant_frame.position.y,
                     time_enemy_spent_controlled=participant_frame.time_enemy_spent_controlled,
                     # Damage stats
                     magic_damage_done=damage_stats.get("magicDamageDone"),
