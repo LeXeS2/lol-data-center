@@ -256,7 +256,7 @@ class PollingService:
                 )
                 continue
 
-        # Update last polled timestamp (don't update last_match_id anymore)
+        # Update last polled timestamp
         await player_service.update_last_polled(player)
 
         if new_match_count > 0:

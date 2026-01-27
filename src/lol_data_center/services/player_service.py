@@ -194,17 +194,13 @@ class PlayerService:
     async def update_last_polled(
         self,
         player: TrackedPlayer,
-        last_match_id: str | None = None,
     ) -> None:
         """Update the last polled timestamp for a player.
 
         Args:
             player: The player to update
-            last_match_id: Optional last match ID to update
         """
         player.last_polled_at = datetime.now(UTC)
-        if last_match_id:
-            player.last_match_id = last_match_id
         await self._session.commit()
 
     async def toggle_polling(self, puuid: str, enabled: bool) -> bool:
