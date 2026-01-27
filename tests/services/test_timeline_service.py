@@ -56,8 +56,7 @@ def sample_timeline_dto() -> TimelineDto:
                             xp=0,
                             minionsKilled=0,
                             jungleMinionsKilled=0,
-                            x=100,
-                            y=100,
+                            position={"x": 100, "y": 100},
                             timeEnemySpentControlled=0,
                         ),
                         "2": ParticipantFrameDto(
@@ -69,8 +68,7 @@ def sample_timeline_dto() -> TimelineDto:
                             xp=0,
                             minionsKilled=0,
                             jungleMinionsKilled=0,
-                            x=200,
-                            y=200,
+                            position={"x": 200, "y": 200},
                             timeEnemySpentControlled=0,
                         ),
                         "3": ParticipantFrameDto(
@@ -82,8 +80,7 @@ def sample_timeline_dto() -> TimelineDto:
                             xp=0,
                             minionsKilled=0,
                             jungleMinionsKilled=0,
-                            x=300,
-                            y=300,
+                            position={"x": 300, "y": 300},
                             timeEnemySpentControlled=0,
                         ),
                     },
@@ -110,8 +107,7 @@ def sample_timeline_dto() -> TimelineDto:
                             xp=558,
                             minionsKilled=15,
                             jungleMinionsKilled=0,
-                            x=150,
-                            y=150,
+                            position={"x": 150, "y": 150},
                             timeEnemySpentControlled=500,
                         ),
                         "3": ParticipantFrameDto(
@@ -123,8 +119,7 @@ def sample_timeline_dto() -> TimelineDto:
                             xp=400,
                             minionsKilled=12,
                             jungleMinionsKilled=2,
-                            x=350,
-                            y=350,
+                            position={"x": 350, "y": 350},
                             timeEnemySpentControlled=0,
                         ),
                     },
@@ -205,23 +200,31 @@ async def test_save_timeline_saves_only_tracked_player_frames(
     assert frame_1_0.level == 1
     assert frame_1_0.current_gold == 500
     assert frame_1_0.minions_killed == 0
+    assert frame_1_0.position_x == 100
+    assert frame_1_0.position_y == 100
 
     frame_3_0 = frames[1]
     assert frame_3_0.timestamp == 0
     assert frame_3_0.participant_id == 3
     assert frame_3_0.level == 1
+    assert frame_3_0.position_x == 300
+    assert frame_3_0.position_y == 300
 
     frame_1_60 = frames[2]
     assert frame_1_60.timestamp == 60000
     assert frame_1_60.participant_id == 1
     assert frame_1_60.level == 3
     assert frame_1_60.minions_killed == 15
+    assert frame_1_60.position_x == 150
+    assert frame_1_60.position_y == 150
 
     frame_3_60 = frames[3]
     assert frame_3_60.timestamp == 60000
     assert frame_3_60.participant_id == 3
     assert frame_3_60.level == 2
     assert frame_3_60.jungle_minions_killed == 2
+    assert frame_3_60.position_x == 350
+    assert frame_3_60.position_y == 350
 
 
 @pytest.mark.asyncio

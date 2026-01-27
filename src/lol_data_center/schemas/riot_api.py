@@ -224,6 +224,15 @@ class MatchIdsResponse(BaseModel):
 # Timeline DTOs
 
 
+class PositionDto(BaseModel):
+    """Two-dimensional position on the game map."""
+
+    x: int = 0
+    y: int = 0
+
+    model_config = {"populate_by_name": True}
+
+
 class ParticipantFrameDto(BaseModel):
     """Per-participant stats at a specific timestamp in the timeline.
 
@@ -239,8 +248,7 @@ class ParticipantFrameDto(BaseModel):
     xp: int = 0
     minions_killed: int = Field(0, alias="minionsKilled")
     jungle_minions_killed: int = Field(0, alias="jungleMinionsKilled")
-    position_x: int = Field(0, alias="x")
-    position_y: int = Field(0, alias="y")
+    position: PositionDto | None = Field(None, alias="position")
     time_enemy_spent_controlled: int = Field(0, alias="timeEnemySpentControlled")
 
     # Damage stats (may not be present in all frames)
