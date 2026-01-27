@@ -5,13 +5,13 @@ from io import BytesIO
 
 import discord
 from discord import app_commands
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Platform, Region
 from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session
-from lol_data_center.database.models import DiscordUserRegistration, MatchParticipant, TrackedPlayer
+from lol_data_center.database.models import DiscordUserRegistration, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.backfill_service import BackfillService
 from lol_data_center.services.map_visualization_service import MapVisualizationService
@@ -687,20 +687,11 @@ class DiscordBot:
                 region=region,
             )
 
-            # Update last_match_id to prevent re-processing
+            # Enable polling and set last_polled_at
             if saved_count > 0:
-                result = await session.execute(
-                    select(MatchParticipant.match_id)
-                    .where(MatchParticipant.puuid == player.puuid)
-                    .order_by(desc(MatchParticipant.game_creation))
-                    .limit(1)
-                )
-                latest_match_id = result.scalar_one_or_none()
-
-                if latest_match_id:
-                    player_service = PlayerService(session)
-                    await player_service.toggle_polling(player.puuid, True)
-                    await player_service.update_last_polled(player, latest_match_id)
+                player_service = PlayerService(session)
+                await player_service.toggle_polling(player.puuid, True)
+                await player_service.update_last_polled(player)
 
             # Send success notification
             embed = discord.Embed(
