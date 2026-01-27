@@ -8,7 +8,7 @@ from matplotlib.colors import LogNorm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lol_data_center.database.models import TimelineParticipantFrame
+from lol_data_center.database.models import TimelineParticipantFrame, TrackedPlayer
 from lol_data_center.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -50,6 +50,15 @@ class MapVisualizationService:
         Raises:
             ValueError: If no position data found for player
         """
+        # Query player info for Riot ID
+        player_result = await self._session.execute(
+            select(TrackedPlayer.game_name, TrackedPlayer.tag_line).where(
+                TrackedPlayer.puuid == player_puuid
+            )
+        )
+        player_row = player_result.first()
+        riot_id = f"{player_row[0]}#{player_row[1]}" if player_row else player_puuid
+
         # Query all position data for the player
         logger.info("Querying position data for player", puuid=player_puuid)
 
@@ -115,7 +124,7 @@ class MapVisualizationService:
             # Configure axes
             ax.set_xlabel("X Position")
             ax.set_ylabel("Y Position")
-            ax.set_title(f"Player Position Heatmap\n{player_puuid}")
+            ax.set_title(f"Player Position Heatmap\n{riot_id}")
 
             # Add grid for reference
             ax.grid(True, alpha=0.3, linestyle="--")
@@ -149,6 +158,15 @@ class MapVisualizationService:
             ValueError: If no position data found for player
             Exception: If map image cannot be downloaded
         """
+        # Query player info for Riot ID
+        player_result = await self._session.execute(
+            select(TrackedPlayer.game_name, TrackedPlayer.tag_line).where(
+                TrackedPlayer.puuid == player_puuid
+            )
+        )
+        player_row = player_result.first()
+        riot_id = f"{player_row[0]}#{player_row[1]}" if player_row else player_puuid
+
         # Query all position data for the player
         logger.info(
             "Querying position data for map overlay",
@@ -246,7 +264,7 @@ class MapVisualizationService:
             # Configure axes
             ax.set_xlabel("X Position")
             ax.set_ylabel("Y Position")
-            ax.set_title(f"Player Position Heatmap\n{player_puuid}")
+            ax.set_title(f"Player Position Heatmap\n{riot_id}")
 
             # Convert to bytes
             buf = BytesIO()
