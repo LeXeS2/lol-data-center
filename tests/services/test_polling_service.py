@@ -1,4 +1,4 @@
-"""Tests for PollingService filtering by game mode."""
+"""Tests for PollingService filtering by allowed queues."""
 
 from __future__ import annotations
 
@@ -22,23 +22,24 @@ if TYPE_CHECKING:
 
 
 class TestPollingServiceFiltering:
-    """Ensure polling only processes CLASSIC matches."""
+    """Ensure polling only processes matches in allowed queues."""
 
     @pytest.mark.asyncio
-    async def test_polling_skips_non_classic(
+    async def test_polling_skips_disallowed_queue(
         self,
         async_session: AsyncSession,
         sample_player: TrackedPlayer,
         sample_match_dto: MatchDto,
         mock_riot_client: MagicMock,
     ) -> None:
-        # Arrange: non-CLASSIC match
+        # Arrange: disallowed queue (e.g., ARAM 450)
         match_id = "EUW1_NON_CLASSIC_1"
         mock_riot_client.get_match_ids.return_value = [match_id]
 
         non_classic = sample_match_dto.model_copy(deep=True)
         non_classic.metadata.match_id = match_id
         non_classic.info.game_mode = "ARAM"
+        non_classic.info.queue_id = 450
         mock_riot_client.get_match = AsyncMock(return_value=non_classic)
 
         polling = PollingService(api_client=mock_riot_client)
@@ -63,20 +64,21 @@ class TestPollingServiceFiltering:
         assert (await ms.match_exists(match_id)) is False
 
     @pytest.mark.asyncio
-    async def test_polling_accepts_classic(
+    async def test_polling_accepts_allowed_queue(
         self,
         async_session: AsyncSession,
         sample_player: TrackedPlayer,
         sample_match_dto: MatchDto,
         mock_riot_client: MagicMock,
     ) -> None:
-        # Arrange: CLASSIC match
+        # Arrange: allowed queue (e.g., Ranked Solo/Duo 420)
         match_id = "EUW1_CLASSIC_1"
         mock_riot_client.get_match_ids.return_value = [match_id]
 
         classic = sample_match_dto.model_copy(deep=True)
         classic.metadata.match_id = match_id
         classic.info.game_mode = "CLASSIC"
+        classic.info.queue_id = 420
         mock_riot_client.get_match = AsyncMock(return_value=classic)
 
         polling = PollingService(api_client=mock_riot_client)

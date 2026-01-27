@@ -8,6 +8,7 @@ from lol_data_center.api_client.riot_client import Region, RiotApiClient
 from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.match_service import MatchService
+from lol_data_center.services.filters import is_allowed_queue
 
 logger = get_logger(__name__)
 
@@ -131,12 +132,12 @@ class BackfillService:
             try:
                 match_data = await client.get_match(match_id, region)
 
-                # Filter: Only accept CLASSIC game mode
-                if match_data.info.game_mode != "CLASSIC":
+                # Filter: Only accept allowed queues
+                if not is_allowed_queue(match_data.info.queue_id):
                     logger.debug(
-                        "Skipping non-CLASSIC game mode",
+                        "Skipping disallowed queue",
                         match_id=match_id,
-                        game_mode=match_data.info.game_mode,
+                        queue_id=match_data.info.queue_id,
                         progress=f"{i}/{total_matches}",
                     )
                     continue

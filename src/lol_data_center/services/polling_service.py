@@ -14,6 +14,7 @@ from lol_data_center.events.event_bus import NewMatchEvent, get_event_bus
 from lol_data_center.logging_config import get_logger
 from lol_data_center.services.match_service import MatchService
 from lol_data_center.services.player_service import PlayerService
+from lol_data_center.services.filters import is_allowed_queue
 
 logger = get_logger(__name__)
 
@@ -190,12 +191,12 @@ class PollingService:
                 if match_data is None:
                     match_data = await self._api_client.get_match(match_id, region)
 
-                # Filter: process only CLASSIC game mode
-                if match_data.info.game_mode != "CLASSIC":
+                # Filter: only process matches from allowed queues
+                if not is_allowed_queue(match_data.info.queue_id):
                     logger.debug(
-                        "Skipping non-CLASSIC game mode",
+                        "Skipping disallowed queue",
                         match_id=match_id,
-                        game_mode=match_data.info.game_mode,
+                        queue_id=match_data.info.queue_id,
                     )
                     continue
 
