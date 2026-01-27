@@ -725,7 +725,7 @@ class DiscordBot:
                     # Create embed with statistics
                     embed = discord.Embed(
                         title=f"📊 Ranked Stats for {used_riot_id}",
-                        description=f"Season {stats_service._get_current_season()} Statistics",
+                        description=f"Season {stats_service.get_current_season()} Statistics",
                         color=discord.Color.blue(),
                     )
 

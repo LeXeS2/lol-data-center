@@ -51,15 +51,15 @@ class StatsService:
         """
         self._session = session
 
-    def _get_current_season(self) -> int:
+    def get_current_season(self) -> int:
         """Get the current season number based on the year.
 
         Returns:
-            Current season number (e.g., 15 for 2025)
+            Current season number (e.g., 16 for 2026)
         """
         current_year = datetime.now(UTC).year
-        # Season 15 started in 2025
         # Season calculation: season = year - 2010
+        # Examples: 2025 → Season 15, 2026 → Season 16
         return current_year - 2010
 
     async def get_player_stats(self, puuid: str) -> PlayerStats:
@@ -74,7 +74,7 @@ class StatsService:
         Raises:
             ValueError: If player has no ranked games
         """
-        current_season = self._get_current_season()
+        current_season = self.get_current_season()
         season_prefix = f"{current_season}."
 
         # Query for ranked games in the current season

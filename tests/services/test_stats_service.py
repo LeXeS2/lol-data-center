@@ -20,9 +20,10 @@ async def test_get_player_stats_current_season(
 ) -> None:
     """Test getting player stats for current season."""
     stats_service = StatsService(async_session)
-    current_season = stats_service._get_current_season()
+    current_season = stats_service.get_current_season()
 
     # Create matches for current season
+    champion_names = ["Annie", "Annie", "Annie", "Ahri", "Lux"]
     for i in range(5):
         match = Match(
             match_id=f"TEST_{i}",
@@ -51,7 +52,7 @@ async def test_get_player_stats_current_season(
             profile_icon=sample_player.profile_icon_id or 0,
             summoner_level=sample_player.summoner_level or 1,
             champion_id=1,
-            champion_name="Annie" if i < 3 else "Ahri" if i == 3 else "Lux",
+            champion_name=champion_names[i],
             champion_level=18,
             team_id=100,
             team_position="MID",
@@ -148,7 +149,7 @@ async def test_get_player_stats_filters_non_ranked(
 ) -> None:
     """Test that non-ranked games are filtered out."""
     stats_service = StatsService(async_session)
-    current_season = stats_service._get_current_season()
+    current_season = stats_service.get_current_season()
 
     # Create a normal game (non-ranked, queue_id=400)
     match = Match(
@@ -252,7 +253,7 @@ async def test_get_player_stats_filters_old_season(
 ) -> None:
     """Test that old season games are filtered out."""
     stats_service = StatsService(async_session)
-    current_season = stats_service._get_current_season()
+    current_season = stats_service.get_current_season()
     old_season = current_season - 1
 
     # Create a ranked game from previous season
@@ -357,7 +358,7 @@ async def test_get_player_stats_both_ranked_queues(
 ) -> None:
     """Test that both ranked solo and flex games are counted."""
     stats_service = StatsService(async_session)
-    current_season = stats_service._get_current_season()
+    current_season = stats_service.get_current_season()
 
     # Create one ranked solo game and one ranked flex game
     for i, queue_id in enumerate([RANKED_SOLO_QUEUE_ID, RANKED_FLEX_QUEUE_ID]):
