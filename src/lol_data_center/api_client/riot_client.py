@@ -13,6 +13,7 @@ from lol_data_center.config import get_settings
 from lol_data_center.logging_config import get_logger
 from lol_data_center.schemas.riot_api import (
     AccountDto,
+    LeagueEntryDto,
     MatchDto,
     SummonerDto,
     TimelineDto,
@@ -298,6 +299,47 @@ class RiotApiClient:
             "summoner-v4/by-puuid",
             self._build_url(platform.value, endpoint),
         )
+
+    # League-V4 endpoints
+
+    async def get_summoner_league(
+        self,
+        summoner_id: str,
+        platform: Platform = Platform.EUW1,
+    ) -> list[LeagueEntryDto]:
+        """Get league entries for a summoner.
+
+        Args:
+            summoner_id: Encrypted summoner ID
+            platform: Platform routing value
+
+        Returns:
+            List of league entries (one per queue type: RANKED_SOLO_5x5, RANKED_FLEX_SR, etc.)
+        """
+        endpoint = f"/lol/league/v4/entries/by-summoner/{summoner_id}"
+        data = await self._request(platform.value, endpoint)
+        
+        # The API returns a list of league entries
+        if not isinstance(data, list):
+            raise ValidationError(
+                message="Expected list of league entries",
+                endpoint="league-v4/by-summoner",
+                url=self._build_url(platform.value, endpoint),
+                response_body=str(data),
+            )
+        
+        # Validate each entry
+        entries = []
+        for entry_data in data:
+            entry = await validate_response(
+                LeagueEntryDto,
+                entry_data,
+                "league-v4/by-summoner",
+                self._build_url(platform.value, endpoint),
+            )
+            entries.append(entry)
+        
+        return entries
 
     # Match-V5 endpoints
 

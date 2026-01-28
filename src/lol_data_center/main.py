@@ -8,6 +8,7 @@ from lol_data_center.database.engine import close_db, init_db
 from lol_data_center.logging_config import configure_logging, get_logger
 from lol_data_center.notifications.discord_bot import DiscordBot
 from lol_data_center.services.polling_service import PollingService
+from lol_data_center.services.rank_polling_service import RankPollingService
 
 logger = get_logger(__name__)
 
@@ -23,6 +24,7 @@ async def main() -> None:
 
     # Initialize services
     polling_service = PollingService()
+    rank_polling_service = RankPollingService()
     achievement_evaluator = AchievementEvaluator()
     discord_bot = DiscordBot()
 
@@ -49,8 +51,9 @@ async def main() -> None:
         # Start Discord bot (if configured)
         await discord_bot.start()
 
-        # Start polling service
+        # Start polling services
         await polling_service.start()
+        await rank_polling_service.start()
 
         logger.info("LoL Data Center is running. Press Ctrl+C to stop.")
 
@@ -64,6 +67,7 @@ async def main() -> None:
         logger.info("Shutting down...")
 
         await polling_service.stop()
+        await rank_polling_service.stop()
         await achievement_evaluator.close()
         await discord_bot.stop()
         await close_db()
