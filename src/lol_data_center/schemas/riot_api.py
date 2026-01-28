@@ -344,10 +344,14 @@ class LeagueEntryDto(BaseModel):
     """League entry information from league-v4 API.
 
     Contains player's rank information for a specific queue type.
+    Note: Different endpoints return different identifiers:
+    - /by-summoner/{summonerId} returns summonerId
+    - /by-puuid/{puuid} returns puuid
     """
 
     league_id: str = Field(..., alias="leagueId")
-    summoner_id: str = Field(..., alias="summonerId")
+    summoner_id: str | None = Field(None, alias="summonerId")
+    puuid: str | None = None
     queue_type: str = Field(..., alias="queueType")  # RANKED_SOLO_5x5, RANKED_FLEX_SR, etc.
     # Tier: IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD, DIAMOND, MASTER, GRANDMASTER, CHALLENGER
     tier: str
