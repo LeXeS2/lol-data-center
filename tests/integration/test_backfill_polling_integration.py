@@ -54,10 +54,16 @@ class TestBackfillPollingIntegration:
         # Both backfill and polling will get these match details
         match_1 = sample_match_dto.model_copy(deep=True)
         match_1.metadata.match_id = "EUW1_MATCH_1"
+        match_1.info.queue_id = 420
+        match_1.info.game_mode = "CLASSIC"
         match_2 = sample_match_dto.model_copy(deep=True)
         match_2.metadata.match_id = "EUW1_MATCH_2"
+        match_2.info.queue_id = 420
+        match_2.info.game_mode = "CLASSIC"
         match_3 = sample_match_dto.model_copy(deep=True)
         match_3.metadata.match_id = "EUW1_MATCH_3"
+        match_3.info.queue_id = 420
+        match_3.info.game_mode = "CLASSIC"
 
         mock_client.get_match = AsyncMock(side_effect=[match_1, match_2, match_3])
 
@@ -127,8 +133,12 @@ class TestBackfillPollingIntegration:
 
         match_1 = sample_match_dto.model_copy(deep=True)
         match_1.metadata.match_id = "EUW1_MATCH_1"
+        match_1.info.queue_id = 420
+        match_1.info.game_mode = "CLASSIC"
         match_2 = sample_match_dto.model_copy(deep=True)
         match_2.metadata.match_id = "EUW1_MATCH_2"
+        match_2.info.queue_id = 420
+        match_2.info.game_mode = "CLASSIC"
 
         mock_client.get_match = AsyncMock(side_effect=[match_1, match_2])
 
@@ -139,6 +149,9 @@ class TestBackfillPollingIntegration:
             region=Region.EUROPE,
         )
         assert saved_count == 2
+
+        # Reset mock to track polling phase separately
+        mock_client.get_match.reset_mock()
 
         # Step 3: Setup polling - now there's a NEW match
         new_match_ids = [
@@ -151,6 +164,8 @@ class TestBackfillPollingIntegration:
         # Configure mock to return new match details
         match_new = sample_match_dto.model_copy(deep=True)
         match_new.metadata.match_id = "EUW1_MATCH_NEW"
+        match_new.info.queue_id = 420
+        match_new.info.game_mode = "CLASSIC"
         mock_client.get_match = AsyncMock(return_value=match_new)
 
         polling_service = PollingService(api_client=mock_client)
