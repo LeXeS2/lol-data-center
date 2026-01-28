@@ -8,10 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Platform, RiotApiClient, RiotApiError
-from lol_data_center.config import get_settings
 from lol_data_center.database.engine import get_async_session
 from lol_data_center.database.models import RankHistory, TrackedPlayer
 from lol_data_center.logging_config import get_logger
+from lol_data_center.schemas.riot_api import LeagueEntryDto
 from lol_data_center.services.player_service import PlayerService
 
 logger = get_logger(__name__)
@@ -138,7 +138,7 @@ class RankPollingService:
                 # Determine platform from region
                 platform = REGION_TO_PLATFORM.get(player.region, Platform.EUW1)
                 summoner = await self._api_client.get_summoner_by_puuid(player.puuid, platform)
-                
+
                 if summoner.id:
                     player.summoner_id = summoner.id
                     await session.commit()
@@ -193,7 +193,7 @@ class RankPollingService:
     async def _save_rank_if_changed(
         self,
         player: TrackedPlayer,
-        league_entry: object,
+        league_entry: LeagueEntryDto,
         session: AsyncSession,
     ) -> None:
         """Save rank data if it has changed since last record.

@@ -4,8 +4,8 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 
 import matplotlib
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-from matplotlib.dates import DateFormatter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -84,8 +84,8 @@ class EloGraphService:
         # Create the plot
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        # Plot ELO progression
-        ax.plot(timestamps, elos, marker="o", linestyle="-", linewidth=2, markersize=6)
+        # Plot ELO progression (matplotlib handles datetime objects automatically)
+        ax.plot(timestamps, elos, marker="o", linestyle="-", linewidth=2, markersize=6)  # type: ignore[arg-type]
 
         # Formatting
         ax.set_xlabel("Date", fontsize=12)
@@ -94,7 +94,7 @@ class EloGraphService:
         ax.grid(True, alpha=0.3)
 
         # Format x-axis dates
-        date_formatter = DateFormatter("%Y-%m-%d")
+        date_formatter = mdates.DateFormatter("%Y-%m-%d")  # type: ignore[no-untyped-call]
         ax.xaxis.set_major_formatter(date_formatter)
         plt.xticks(rotation=45, ha="right")
 
@@ -121,7 +121,7 @@ class EloGraphService:
                 )
                 # Add tier label
                 ax.text(
-                    timestamps[0],
+                    mdates.date2num(timestamps[0]),  # type: ignore[no-untyped-call]
                     elo_value,
                     f" {tier_name}",
                     verticalalignment="bottom",
@@ -136,11 +136,11 @@ class EloGraphService:
         )
         ax.annotate(
             latest_rank_str,
-            xy=(timestamps[-1], elos[-1]),
+            xy=(mdates.date2num(timestamps[-1]), elos[-1]),  # type: ignore[no-untyped-call]
             xytext=(10, 10),
             textcoords="offset points",
-            bbox=dict(boxstyle="round,pad=0.5", facecolor="yellow", alpha=0.7),
-            arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=0"),
+            bbox={"boxstyle": "round,pad=0.5", "facecolor": "yellow", "alpha": 0.7},
+            arrowprops={"arrowstyle": "->", "connectionstyle": "arc3,rad=0"},
         )
 
         # Tight layout to prevent label cutoff

@@ -31,7 +31,8 @@ def calculate_elo(tier: str, rank: str, league_points: int) -> int:
     numeric ELO value for graphing and comparison.
 
     Args:
-        tier: Tier name (IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD, DIAMOND, MASTER, GRANDMASTER, CHALLENGER)
+        tier: Tier name (IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD,
+            DIAMOND, MASTER, GRANDMASTER, CHALLENGER)
         rank: Division (I, II, III, IV) - not used for Master+
         league_points: LP within the current division (0-100)
 
