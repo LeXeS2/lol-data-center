@@ -150,43 +150,11 @@ class RankPollingService:
             riot_id=player.riot_id,
         )
 
-        # Get summoner data first to obtain summoner_id (needed for league endpoint)
-        # If player doesn't have summoner_id, fetch it
-        if not player.summoner_id:
-            try:
-                # Determine platform from region
-                platform = get_platform_for_player(player.region)
-                summoner = await self._api_client.get_summoner_by_puuid(player.puuid, platform)
-
-                if summoner.id:
-                    player.summoner_id = summoner.id
-                    await session.commit()
-                    logger.info(
-                        "Updated player summoner_id",
-                        player_id=player.id,
-                        summoner_id=summoner.id,
-                    )
-                else:
-                    logger.warning(
-                        "Summoner ID not available from API",
-                        player_id=player.id,
-                        riot_id=player.riot_id,
-                    )
-                    return
-            except RiotApiError as e:
-                logger.warning(
-                    "Failed to get summoner data",
-                    player_id=player.id,
-                    riot_id=player.riot_id,
-                    error=str(e),
-                )
-                return
-
-        # Now get league entries
+        # Get league entries using puuid (the endpoint uses by-puuid, not by-summoner)
         try:
             platform = get_platform_for_player(player.region)
             league_entries = await self._api_client.get_summoner_league(
-                player.summoner_id, platform
+                player.puuid, platform
             )
         except RiotApiError as e:
             logger.warning(
