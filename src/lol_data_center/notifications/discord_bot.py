@@ -784,6 +784,108 @@ class DiscordBot:
             except Exception as e:
                 await send_error_response(interaction, e, "show-stats")
 
+        @self._tree.command(
+            name="elo-graph",
+            description="Show ELO progression graph for a player",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG (optional if registered)",
+            last_weeks="Number of weeks to show (default: from season start)",
+            queue="Queue type: solo or flex (default: solo)",
+        )
+        async def elo_graph_command(
+            interaction: discord.Interaction,
+            riot_id: str | None = None,
+            last_weeks: int | None = None,
+            queue: str = "solo",
+        ) -> None:
+            """Show ELO progression graph for a player."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                async with get_async_session() as session:
+                    # Determine which Riot ID to use
+                    if riot_id:
+                        # Use provided Riot ID
+                        game_name, tag_line = parse_riot_id(riot_id)
+                        used_riot_id = riot_id
+                    else:
+                        # Try to use registered Riot ID
+                        registration = await get_registered_riot_id(
+                            session,
+                            str(interaction.user.id),
+                        )
+                        if registration is None:
+                            await send_riot_id_missing_error(interaction, "elo-graph")
+                            return
+                        game_name, tag_line, used_riot_id = registration
+
+                    # Get player
+                    service = PlayerService(session)
+                    player = await get_player_or_error(
+                        interaction, service, game_name, tag_line, used_riot_id
+                    )
+
+                    if player is None:
+                        return
+
+                    # Determine queue type
+                    queue_type = "RANKED_SOLO_5x5" if queue.lower() == "solo" else "RANKED_FLEX_SR"
+
+                    # Generate graph
+                    from lol_data_center.services.elo_graph_service import EloGraphService
+
+                    try:
+                        graph_buffer = await EloGraphService.generate_elo_graph(
+                            session=session,
+                            player_id=player.id,
+                            queue_type=queue_type,
+                            last_weeks=last_weeks,
+                        )
+                    except ValueError as e:
+                        await interaction.followup.send(
+                            f"❌ No rank data found for **{used_riot_id}**.\n"
+                            f"Rank data is tracked automatically every 30 minutes. "
+                            f"Please check again later.\n\n"
+                            f"Details: {str(e)}",
+                            ephemeral=True,
+                        )
+                        logger.info(
+                            "No rank data for player",
+                            puuid=player.puuid,
+                            riot_id=used_riot_id,
+                            queue_type=queue_type,
+                        )
+                        return
+
+                    # Send graph as image
+                    file = discord.File(graph_buffer, filename="elo_graph.png")
+                    embed = discord.Embed(
+                        title=f"📈 ELO Progression - {used_riot_id}",
+                        description=f"Queue: {queue_type}",
+                        color=discord.Color.gold(),
+                    )
+                    embed.set_image(url="attachment://elo_graph.png")
+
+                    if last_weeks:
+                        embed.set_footer(text=f"Showing last {last_weeks} weeks")
+                    else:
+                        embed.set_footer(text="Showing from season start")
+
+                    await interaction.followup.send(embed=embed, file=file)
+
+                    logger.info(
+                        "ELO graph sent via Discord bot",
+                        riot_id=used_riot_id,
+                        user=str(interaction.user),
+                        queue_type=queue_type,
+                    )
+
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
+            except Exception as e:
+                await send_error_response(interaction, e, "elo-graph")
+
     async def _backfill_and_notify(
         self,
         interaction: discord.Interaction,

@@ -469,3 +469,56 @@ class TimelineParticipantFrame(Base):
             f"<TimelineParticipantFrame(match_id={self.match_id}, "
             f"timestamp={self.timestamp}, participant_id={self.participant_id})>"
         )
+
+
+class RankHistory(Base):
+    """Historical rank data for tracked players.
+    
+    Stores snapshots of player rank over time, allowing for ELO progression tracking.
+    Only saves when rank changes are detected.
+    """
+
+    __tablename__ = "rank_history"
+    __table_args__ = (
+        UniqueConstraint("player_id", "queue_type", "recorded_at", name="uq_rank_snapshot"),
+        Index("ix_rank_player_queue_time", "player_id", "queue_type", "recorded_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    player_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tracked_players.id", ondelete="CASCADE"), nullable=False
+    )
+    
+    # Queue type (RANKED_SOLO_5x5, RANKED_FLEX_SR, etc.)
+    queue_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    
+    # Rank data
+    tier: Mapped[str] = mapped_column(String(20), nullable=False)  # IRON, BRONZE, etc.
+    rank: Mapped[str] = mapped_column(String(10), nullable=False)  # I, II, III, IV
+    league_points: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # Win/loss record at time of snapshot
+    wins: Mapped[int] = mapped_column(Integer, nullable=False)
+    losses: Mapped[int] = mapped_column(Integer, nullable=False)
+    
+    # Metadata
+    league_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    veteran: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    inactive: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    fresh_blood: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    hot_streak: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Timestamp when this rank was recorded
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False, index=True
+    )
+    
+    # Relationship
+    player: Mapped["TrackedPlayer"] = relationship("TrackedPlayer")
+
+    def __repr__(self) -> str:
+        return (
+            f"<RankHistory(player_id={self.player_id}, "
+            f"queue={self.queue_type}, tier={self.tier} {self.rank}, "
+            f"lp={self.league_points})>"
+        )

@@ -324,3 +324,40 @@ class TimelineDto(BaseModel):
     info: TimelineInfoDto
 
     model_config = {"populate_by_name": True}
+
+
+# League/Rank DTOs
+
+
+class MiniSeriesDto(BaseModel):
+    """Mini-series progress information (for promotion series)."""
+
+    losses: int
+    progress: str  # Example: "WLNNN" (W=win, L=loss, N=not played)
+    target: int  # Number of wins needed
+    wins: int
+
+    model_config = {"populate_by_name": True}
+
+
+class LeagueEntryDto(BaseModel):
+    """League entry information from league-v4 API.
+    
+    Contains player's rank information for a specific queue type.
+    """
+
+    league_id: str = Field(..., alias="leagueId")
+    summoner_id: str = Field(..., alias="summonerId")
+    queue_type: str = Field(..., alias="queueType")  # RANKED_SOLO_5x5, RANKED_FLEX_SR, etc.
+    tier: str  # IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD, DIAMOND, MASTER, GRANDMASTER, CHALLENGER
+    rank: str  # I, II, III, IV (Roman numerals, not used in Master+)
+    league_points: int = Field(..., alias="leaguePoints")
+    wins: int
+    losses: int
+    veteran: bool = False
+    inactive: bool = False
+    fresh_blood: bool = Field(False, alias="freshBlood")
+    hot_streak: bool = Field(False, alias="hotStreak")
+    mini_series: MiniSeriesDto | None = Field(None, alias="miniSeries")
+
+    model_config = {"populate_by_name": True}
