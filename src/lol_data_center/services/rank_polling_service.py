@@ -16,13 +16,32 @@ from lol_data_center.services.player_service import PlayerService
 
 logger = get_logger(__name__)
 
-# Default platform mapping (can be extended based on region)
-REGION_TO_PLATFORM = {
+# Default platform mapping for regions
+# Note: This uses the primary platform for each region. In production,
+# you might want to store the specific platform in TrackedPlayer model
+# or infer it from the player's match history.
+DEFAULT_PLATFORM_FOR_REGION = {
     "americas": Platform.NA1,
     "asia": Platform.KR,
     "europe": Platform.EUW1,
     "sea": Platform.SG2,
 }
+
+
+def get_platform_for_player(region: str) -> Platform:
+    """Get platform for a player's region.
+
+    Args:
+        region: Player's region (e.g., "europe", "americas")
+
+    Returns:
+        Platform enum value for API calls
+
+    Note:
+        This returns the primary platform for the region. For more accuracy,
+        the TrackedPlayer model could be extended to store the specific platform.
+    """
+    return DEFAULT_PLATFORM_FOR_REGION.get(region, Platform.EUW1)
 
 
 class RankPollingService:
@@ -136,7 +155,7 @@ class RankPollingService:
         if not player.summoner_id:
             try:
                 # Determine platform from region
-                platform = REGION_TO_PLATFORM.get(player.region, Platform.EUW1)
+                platform = get_platform_for_player(player.region)
                 summoner = await self._api_client.get_summoner_by_puuid(player.puuid, platform)
 
                 if summoner.id:
@@ -165,7 +184,7 @@ class RankPollingService:
 
         # Now get league entries
         try:
-            platform = REGION_TO_PLATFORM.get(player.region, Platform.EUW1)
+            platform = get_platform_for_player(player.region)
             league_entries = await self._api_client.get_summoner_league(
                 player.summoner_id, platform
             )

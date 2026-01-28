@@ -803,6 +803,16 @@ class DiscordBot:
             await interaction.response.defer(thinking=True)
 
             try:
+                # Validate queue parameter
+                queue_lower = queue.lower()
+                if queue_lower not in ["solo", "flex"]:
+                    await interaction.followup.send(
+                        f"❌ Invalid queue type: '{queue}'\n"
+                        f"Valid options are: **solo** or **flex**",
+                        ephemeral=True,
+                    )
+                    return
+
                 async with get_async_session() as session:
                     # Determine which Riot ID to use
                     if riot_id:
@@ -830,7 +840,9 @@ class DiscordBot:
                         return
 
                     # Determine queue type
-                    queue_type = "RANKED_SOLO_5x5" if queue.lower() == "solo" else "RANKED_FLEX_SR"
+                    queue_type = (
+                        "RANKED_SOLO_5x5" if queue_lower == "solo" else "RANKED_FLEX_SR"
+                    )
 
                     # Generate graph
                     from lol_data_center.services.elo_graph_service import EloGraphService

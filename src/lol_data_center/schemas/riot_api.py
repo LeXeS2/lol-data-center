@@ -342,14 +342,15 @@ class MiniSeriesDto(BaseModel):
 
 class LeagueEntryDto(BaseModel):
     """League entry information from league-v4 API.
-    
+
     Contains player's rank information for a specific queue type.
     """
 
     league_id: str = Field(..., alias="leagueId")
     summoner_id: str = Field(..., alias="summonerId")
     queue_type: str = Field(..., alias="queueType")  # RANKED_SOLO_5x5, RANKED_FLEX_SR, etc.
-    tier: str  # IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD, DIAMOND, MASTER, GRANDMASTER, CHALLENGER
+    # Tier: IRON, BRONZE, SILVER, GOLD, PLATINUM, EMERALD, DIAMOND, MASTER, GRANDMASTER, CHALLENGER
+    tier: str
     rank: str  # I, II, III, IV (Roman numerals, not used in Master+)
     league_points: int = Field(..., alias="leaguePoints")
     wins: int
