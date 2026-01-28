@@ -192,3 +192,52 @@ class TestPollingServiceFiltering:
 
         # Assert: match was processed
         assert event_count == 1
+
+    @pytest.mark.asyncio
+    async def test_polling_skips_existing_matches(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
+        """Test that polling skips matches that already exist in the database.
+
+        This is critical for the backfill use case - after backfill saves matches,
+        the polling service should not process them again even if they're returned
+        by the Riot API.
+        """
+        # Arrange: Pre-save a match (simulating backfill)
+        match_id = "EUW1_EXISTING_MATCH"
+        existing_match = sample_match_dto.model_copy(deep=True)
+        existing_match.metadata.match_id = match_id
+        existing_match.info.game_mode = "CLASSIC"
+        existing_match.info.queue_id = 420
+
+        match_service = MatchService(async_session)
+        await match_service.save_match(existing_match)
+
+        # Configure mock client to return the existing match ID
+        mock_riot_client.get_match_ids.return_value = [match_id]
+
+        polling = PollingService(api_client=mock_riot_client)
+
+        # Act: subscribe to events and poll
+        event_bus = get_event_bus()
+        event_count = 0
+
+        async def count_events(event: NewMatchEvent) -> None:
+            nonlocal event_count
+            event_count += 1
+
+        event_bus.subscribe(NewMatchEvent, count_events)
+        try:
+            await polling._poll_player(sample_player, async_session)
+        finally:
+            event_bus.unsubscribe(NewMatchEvent, count_events)
+
+        # Assert: No events should be published for existing matches
+        assert event_count == 0
+
+        # Assert: Riot API's get_match should NOT be called for existing matches
+        mock_riot_client.get_match.assert_not_called()

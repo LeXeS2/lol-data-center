@@ -12,9 +12,9 @@ from lol_data_center.database.engine import get_async_session
 from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.events.event_bus import NewMatchEvent, get_event_bus
 from lol_data_center.logging_config import get_logger
+from lol_data_center.services.filters import is_allowed_queue
 from lol_data_center.services.match_service import MatchService
 from lol_data_center.services.player_service import PlayerService
-from lol_data_center.services.filters import is_allowed_queue
 
 logger = get_logger(__name__)
 
@@ -167,29 +167,18 @@ class PollingService:
 
         for match_id in match_ids:
             # Check if match already exists in database
-            match_data = None
+            # If it does, skip it - it was already processed (e.g., during backfill)
             if await match_service.match_exists(match_id):
                 logger.debug(
-                    "Match exists, loading from DB",
+                    "Match already exists, skipping",
                     match_id=match_id,
                     player_id=player.id,
                 )
-
-                # Load match from database instead of querying Riot API
-                match_data = await match_service.get_match_dto(match_id)
-
-                if match_data is None:
-                    logger.error(
-                        "Match exists but failed to load from DB",
-                        match_id=match_id,
-                        player_id=player.id,
-                    )
-                    continue
+                continue
 
             try:
-                # Fetch match details from Riot API if not loaded from DB
-                if match_data is None:
-                    match_data = await self._api_client.get_match(match_id, region)
+                # Fetch match details from Riot API
+                match_data = await self._api_client.get_match(match_id, region)
 
                 # Filter: only process matches from allowed queues
                 if not is_allowed_queue(match_data.info.queue_id):
