@@ -27,9 +27,7 @@ class DiscordNotifier:
     async def _get_session(self) -> aiohttp.ClientSession:
         """Get or create the aiohttp session."""
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=10)
-            )
+            self._session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10))
         return self._session
 
     async def close(self) -> None:
@@ -135,25 +133,31 @@ class DiscordNotifier:
         fields = []
 
         if champion_name:
-            fields.append({
-                "name": "Champion",
-                "value": champion_name,
-                "inline": True,
-            })
+            fields.append(
+                {
+                    "name": "Champion",
+                    "value": champion_name,
+                    "inline": True,
+                }
+            )
 
         if kda:
-            fields.append({
-                "name": "KDA",
-                "value": kda,
-                "inline": True,
-            })
+            fields.append(
+                {
+                    "name": "KDA",
+                    "value": kda,
+                    "inline": True,
+                }
+            )
 
         if win is not None:
-            fields.append({
-                "name": "Result",
-                "value": "✅ Victory" if win else "❌ Defeat",
-                "inline": True,
-            })
+            fields.append(
+                {
+                    "name": "Result",
+                    "value": "✅ Victory" if win else "❌ Defeat",
+                    "inline": True,
+                }
+            )
 
         return await self.send_message(
             content=description,

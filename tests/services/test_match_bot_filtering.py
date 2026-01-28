@@ -1,6 +1,5 @@
 """Tests for BOT participant filtering and DB match retrieval."""
 
-
 from lol_data_center.schemas.riot_api import (
     MatchDto,
     MatchInfoDto,

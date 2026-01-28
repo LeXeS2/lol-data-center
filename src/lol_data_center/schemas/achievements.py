@@ -107,8 +107,7 @@ class AchievementResult(BaseModel):
             )
         except (KeyError, ValueError):
             return (
-                f"{self.player_name} achieved {self.achievement.name}! "
-                f"Value: {self.current_value}"
+                f"{self.player_name} achieved {self.achievement.name}! Value: {self.current_value}"
             )
 
 

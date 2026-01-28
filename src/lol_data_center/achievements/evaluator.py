@@ -120,9 +120,7 @@ class AchievementEvaluator:
 
         # Send notifications for triggered achievements
         # Deduplicate consecutive achievements - only send the most prestigious one
-        achievements_to_notify = self._deduplicate_consecutive_achievements(
-            triggered_achievements
-        )
+        achievements_to_notify = self._deduplicate_consecutive_achievements(triggered_achievements)
 
         for achievement_result in achievements_to_notify:
             try:

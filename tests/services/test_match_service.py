@@ -339,11 +339,7 @@ class TestPercentileCalculation:
             stat_field="kills",
             value=10.0,
         )
-        assert (
-            50.0 - self.PERCENTILE_TOLERANCE
-            <= percentile
-            <= 50.0 + self.PERCENTILE_TOLERANCE
-        )
+        assert 50.0 - self.PERCENTILE_TOLERANCE <= percentile <= 50.0 + self.PERCENTILE_TOLERANCE
 
         # Test percentile for high value (should be ~84th percentile for +1 std dev)
         percentile = await service.get_player_stats_percentile(
@@ -584,11 +580,7 @@ class TestPercentileCalculation:
             value=10.0,
             champion_id=1,
         )
-        assert (
-            50.0 - self.PERCENTILE_TOLERANCE
-            <= percentile
-            <= 50.0 + self.PERCENTILE_TOLERANCE
-        )
+        assert 50.0 - self.PERCENTILE_TOLERANCE <= percentile <= 50.0 + self.PERCENTILE_TOLERANCE
 
         # Test percentile for champion 2 with value 10 (should be very low)
         percentile = await service.get_player_stats_percentile(
@@ -709,11 +701,7 @@ class TestPercentileCalculation:
             value=10.0,
             role="MIDDLE",
         )
-        assert (
-            50.0 - self.PERCENTILE_TOLERANCE
-            <= percentile
-            <= 50.0 + self.PERCENTILE_TOLERANCE
-        )
+        assert 50.0 - self.PERCENTILE_TOLERANCE <= percentile <= 50.0 + self.PERCENTILE_TOLERANCE
 
         # Test percentile for JUNGLE role with value 10 (should be very low)
         percentile = await service.get_player_stats_percentile(
@@ -836,11 +824,7 @@ class TestPercentileCalculation:
             value=10.0,
             puuid=sample_player.puuid,
         )
-        assert (
-            50.0 - self.PERCENTILE_TOLERANCE
-            <= percentile
-            <= 50.0 + self.PERCENTILE_TOLERANCE
-        )
+        assert 50.0 - self.PERCENTILE_TOLERANCE <= percentile <= 50.0 + self.PERCENTILE_TOLERANCE
 
         # Test percentile for all players with value 10 (should be lower)
         percentile_all = await service.get_player_stats_percentile(
@@ -848,4 +832,3 @@ class TestPercentileCalculation:
             value=10.0,
         )
         assert percentile_all < percentile  # Should be lower when including high-kill players
-

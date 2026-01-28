@@ -79,7 +79,9 @@ class Match(Base):
     data_version: Mapped[str] = mapped_column(String(10), nullable=False)
     game_creation: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     game_duration: Mapped[int] = mapped_column(Integer, nullable=False)  # seconds
-    game_end_timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    game_end_timestamp: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     game_mode: Mapped[str] = mapped_column(String(50), nullable=False)
     game_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     game_type: Mapped[str] = mapped_column(String(50), nullable=False)

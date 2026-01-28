@@ -8,7 +8,11 @@ from matplotlib.colors import LogNorm
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from lol_data_center.database.models import MatchParticipant, TimelineParticipantFrame, TrackedPlayer
+from lol_data_center.database.models import (
+    MatchParticipant,
+    TimelineParticipantFrame,
+    TrackedPlayer,
+)
 from lol_data_center.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -108,12 +112,12 @@ class MapVisualizationService:
             )
 
             # Add colorbar
-            cbar = plt.colorbar(im, ax=ax, label="Position Frequency (log scale)")
+            plt.colorbar(im, ax=ax, label="Position Frequency (log scale)")
 
             # Configure axes
             ax.set_xlabel("X Position")
             ax.set_ylabel("Y Position")
-            ax.set_title(f"Player Position Heatmap\n{riot_id}")
+            ax.set_title(self._build_title(riot_id, champion, role))
 
             # Add grid for reference
             ax.grid(True, alpha=0.3, linestyle="--")
@@ -194,27 +198,27 @@ class MapVisualizationService:
             import aiohttp
 
             try:
-                map_url = (
-                    "https://ddragon.leagueoflegends.com/cdn/15.7.1/img/map/map11.png"
-                )
+                map_url = "https://ddragon.leagueoflegends.com/cdn/15.7.1/img/map/map11.png"
 
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(map_url, timeout=aiohttp.ClientTimeout(10)) as resp:
-                        if resp.status == 200:
-                            map_image = plt.imread(BytesIO(await resp.read()))
-                            ax.imshow(
-                                map_image,
-                                extent=[0, MAP_WIDTH, 0, MAP_HEIGHT],
-                                origin="upper",
-                                alpha=0.7,
-                                zorder=1,
-                            )
-                            logger.info("Map overlay downloaded successfully")
-                        else:
-                            logger.warning(
-                                "Failed to download map image",
-                                status_code=resp.status,
-                            )
+                async with (
+                    aiohttp.ClientSession() as session,
+                    session.get(map_url, timeout=aiohttp.ClientTimeout(10)) as resp,
+                ):
+                    if resp.status == 200:
+                        map_image = plt.imread(BytesIO(await resp.read()))
+                        ax.imshow(
+                            map_image,
+                            extent=[0, MAP_WIDTH, 0, MAP_HEIGHT],
+                            origin="upper",
+                            alpha=0.7,
+                            zorder=1,
+                        )
+                        logger.info("Map overlay downloaded successfully")
+                    else:
+                        logger.warning(
+                            "Failed to download map image",
+                            status_code=resp.status,
+                        )
             except Exception as e:
                 logger.warning("Could not download map overlay", error=str(e))
 
@@ -231,12 +235,12 @@ class MapVisualizationService:
             )
 
             # Add colorbar
-            cbar = plt.colorbar(im, ax=ax, label="Position Frequency (log scale)")
+            plt.colorbar(im, ax=ax, label="Position Frequency (log scale)")
 
             # Configure axes
             ax.set_xlabel("X Position")
             ax.set_ylabel("Y Position")
-            ax.set_title(f"Player Position Heatmap\n{riot_id}")
+            ax.set_title(self._build_title(riot_id, champion, role))
 
             # Convert to bytes
             buf = BytesIO()
@@ -332,7 +336,9 @@ class MapVisualizationService:
         # Validate role usage for this player
         if normalized_role:
             role_result = await self._session.execute(
-                select(func.count()).select_from(MatchParticipant).where(
+                select(func.count())
+                .select_from(MatchParticipant)
+                .where(
                     MatchParticipant.puuid == player_puuid,
                     func.lower(MatchParticipant.team_position) == normalized_role,
                 )
@@ -343,7 +349,9 @@ class MapVisualizationService:
         # Validate champion usage for this player
         if normalized_champion:
             champ_result = await self._session.execute(
-                select(func.count()).select_from(MatchParticipant).where(
+                select(func.count())
+                .select_from(MatchParticipant)
+                .where(
                     MatchParticipant.puuid == player_puuid,
                     func.lower(MatchParticipant.champion_name) == normalized_champion,
                 )
@@ -354,7 +362,9 @@ class MapVisualizationService:
         # Validate combined filter if both provided
         if normalized_role and normalized_champion:
             combo_result = await self._session.execute(
-                select(func.count()).select_from(MatchParticipant).where(
+                select(func.count())
+                .select_from(MatchParticipant)
+                .where(
                     MatchParticipant.puuid == player_puuid,
                     func.lower(MatchParticipant.team_position) == normalized_role,
                     func.lower(MatchParticipant.champion_name) == normalized_champion,
@@ -364,6 +374,37 @@ class MapVisualizationService:
                 raise ValueError(
                     f"No games found for champion '{champion}' in role '{role}' for this player"
                 )
+
+    @staticmethod
+    def _build_title(riot_id: str, champion: str | None, role: str | None) -> str:
+        """Build the title for the heatmap based on available information.
+
+        Args:
+            riot_id: Player's Riot ID
+            champion: Optional champion name filter
+            role: Optional role filter
+
+        Returns:
+            Formatted title string
+        """
+        title_parts = ["Player Position Heatmap"]
+
+        # Add champion and role information if available
+        filter_info = []
+        if champion:
+            # Use title case for consistent display formatting
+            # Note: For champions with internal capitals (e.g., "LeeSin"),
+            # users should provide the name with proper casing
+            filter_info.append(champion.title())
+        if role:
+            filter_info.append(role.upper())
+
+        if filter_info:
+            title_parts.append(" - ".join(filter_info))
+
+        title_parts.append(riot_id)
+
+        return "\n".join(title_parts)
 
     @staticmethod
     def _mirror_position(x: int, y: int, team_id: int) -> tuple[int, int]:
@@ -376,4 +417,3 @@ class MapVisualizationService:
         if team_id == 200:
             return MAP_WIDTH - y, MAP_HEIGHT - x
         return x, y
-
