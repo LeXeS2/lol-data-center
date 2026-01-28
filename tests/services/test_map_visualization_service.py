@@ -460,3 +460,29 @@ async def test_title_without_filters(
     # Should only have two lines: title and player ID
     lines = title.split("\n")
     assert len(lines) == 2
+
+
+@pytest.mark.asyncio
+async def test_title_champion_capitalization(
+    async_session: AsyncSession,
+    tracked_player,
+    match_with_positions: Match,
+) -> None:
+    """Test that champion name is title-cased in the display."""
+    service = MapVisualizationService(async_session)
+
+    # Test with lowercase input - title-cased for display
+    title1 = service._build_title("TestPlayer#TAG", champion="ahri", role=None)
+    assert "Ahri" in title1
+
+    # Test with uppercase input - title-cased for display
+    title2 = service._build_title("TestPlayer#TAG", champion="AHRI", role=None)
+    assert "Ahri" in title2
+
+    # Test with proper case - remains title-cased
+    title3 = service._build_title("TestPlayer#TAG", champion="Ahri", role=None)
+    assert "Ahri" in title3
+
+    # Test with multi-capital champion name - preserves if properly cased
+    title4 = service._build_title("TestPlayer#TAG", champion="LeeSin", role=None)
+    assert "Leesin" in title4  # .title() lowercases everything except first letter

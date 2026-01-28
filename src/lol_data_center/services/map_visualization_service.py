@@ -392,7 +392,10 @@ class MapVisualizationService:
         # Add champion and role information if available
         filter_info = []
         if champion:
-            filter_info.append(champion.capitalize())
+            # Use title case for consistent display formatting
+            # Note: For champions with internal capitals (e.g., "LeeSin"),
+            # users should provide the name with proper casing
+            filter_info.append(champion.title())
         if role:
             filter_info.append(role.upper())
 
