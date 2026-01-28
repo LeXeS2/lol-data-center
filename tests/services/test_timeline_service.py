@@ -281,12 +281,12 @@ async def test_get_participant_frames(
 
     # Get all frames for match
     all_frames = await service.get_participant_frames("EUW1_1234567890")
-    assert len(all_frames) == 4  # 2 tracked players × 2 timestamps (but participant 2 missing in frame 2)
+    assert (
+        len(all_frames) == 4
+    )  # 2 tracked players × 2 timestamps (but participant 2 missing in frame 2)
 
     # Get frames for specific player
-    player_1_frames = await service.get_participant_frames(
-        "EUW1_1234567890", tracked_player.puuid
-    )
+    player_1_frames = await service.get_participant_frames("EUW1_1234567890", tracked_player.puuid)
     assert len(player_1_frames) == 2  # 2 timestamps
     assert all(f.participant_id == 1 for f in player_1_frames)
     assert player_1_frames[0].timestamp == 0

@@ -27,6 +27,7 @@ def get_engine() -> AsyncEngine:
         pool_config: dict[str, int | bool] = {}
         if "sqlite" in settings.database_url:
             from sqlalchemy.pool import NullPool
+
             pool_config = {"poolclass": NullPool}
         else:
             pool_config = {

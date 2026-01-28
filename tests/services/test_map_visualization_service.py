@@ -21,6 +21,7 @@ async def match_with_positions(
     tracked_player,
 ) -> Match:
     """Create a match with timeline and position data."""
+
     def create_match(match_id: str, game_creation: datetime) -> Match:
         match_obj = Match(
             match_id=match_id,
@@ -247,9 +248,7 @@ async def test_generate_player_heatmap_with_map_overlay(
     """Test generating heatmap with map overlay."""
     service = MapVisualizationService(async_session)
 
-    heatmap_bytes = await service.generate_player_heatmap_with_map_overlay(
-        tracked_player.puuid
-    )
+    heatmap_bytes = await service.generate_player_heatmap_with_map_overlay(tracked_player.puuid)
 
     # Verify PNG output
     assert isinstance(heatmap_bytes, bytes)
@@ -393,6 +392,71 @@ async def test_validate_filters_missing_combination(
         await service.validate_filters(tracked_player.puuid, role="JUNGLE", champion="Ashe")
 
 
+@pytest.mark.asyncio
+async def test_title_with_champion_filter(
+    async_session: AsyncSession,
+    tracked_player,
+    match_with_positions: Match,
+) -> None:
+    """Test that heatmap title includes champion when filtered."""
+    service = MapVisualizationService(async_session)
+
+    # Test title generation with champion filter
+    title = service._build_title("TestPlayer#TAG", champion="Ahri", role=None)
+    assert "Ahri" in title
+    assert "TestPlayer#TAG" in title
+    assert "Player Position Heatmap" in title
 
 
+@pytest.mark.asyncio
+async def test_title_with_role_filter(
+    async_session: AsyncSession,
+    tracked_player,
+    match_with_positions: Match,
+) -> None:
+    """Test that heatmap title includes role when filtered."""
+    service = MapVisualizationService(async_session)
 
+    # Test title generation with role filter
+    title = service._build_title("TestPlayer#TAG", champion=None, role="middle")
+    assert "MIDDLE" in title
+    assert "TestPlayer#TAG" in title
+    assert "Player Position Heatmap" in title
+
+
+@pytest.mark.asyncio
+async def test_title_with_both_filters(
+    async_session: AsyncSession,
+    tracked_player,
+    match_with_positions: Match,
+) -> None:
+    """Test that heatmap title includes both champion and role when both are filtered."""
+    service = MapVisualizationService(async_session)
+
+    # Test title generation with both filters
+    title = service._build_title("TestPlayer#TAG", champion="Ahri", role="middle")
+    assert "Ahri" in title
+    assert "MIDDLE" in title
+    assert "TestPlayer#TAG" in title
+    assert "Player Position Heatmap" in title
+    # Check that champion and role are on the same line (connected by " - ")
+    lines = title.split("\n")
+    assert any("Ahri" in line and "MIDDLE" in line for line in lines)
+
+
+@pytest.mark.asyncio
+async def test_title_without_filters(
+    async_session: AsyncSession,
+    tracked_player,
+    match_with_positions: Match,
+) -> None:
+    """Test that heatmap title is standard format without filters."""
+    service = MapVisualizationService(async_session)
+
+    # Test title generation without filters
+    title = service._build_title("TestPlayer#TAG", champion=None, role=None)
+    assert "TestPlayer#TAG" in title
+    assert "Player Position Heatmap" in title
+    # Should only have two lines: title and player ID
+    lines = title.split("\n")
+    assert len(lines) == 2
