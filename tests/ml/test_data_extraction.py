@@ -1,9 +1,7 @@
 """Tests for ML data extraction service."""
 
 import pytest
-from sqlalchemy import select
 
-from lol_data_center.database.models import Match, MatchParticipant
 from lol_data_center.ml.data_extraction import MatchDataExtractor
 from lol_data_center.services.match_service import MatchService
 

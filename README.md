@@ -1,12 +1,13 @@
 # LoL Data Center
 
-A League of Legends match data collection and achievement evaluation system.
+A League of Legends match data collection, achievement evaluation, and machine learning analytics system.
 
 ## Features
 
 - **Match Data Collection**: Automatically polls and stores match data for tracked players
 - **Rank Tracking**: Monitors player rank changes every 30 minutes and saves history
 - **ELO Graph Visualization**: Generate progression graphs showing rank changes over time
+- **Win Probability Prediction**: Machine learning model that predicts match outcomes based on performance metrics, accounting for role and champion context
 - **Event-Driven Architecture**: Multiple components can listen for new match events
 - **Achievement Evaluation**: Flexible achievement system with multiple condition types:
   - Absolute thresholds (e.g., kills > 10)
@@ -155,6 +156,58 @@ The ELO calculation converts League ranks to a numeric scale:
 ## Achievement Configuration
 
 Achievements are defined in `achievements.yaml`. See the file for examples of all condition types.
+
+## Machine Learning & Analytics
+
+The system includes machine learning capabilities for analyzing match performance and predicting win probability.
+
+### Win Probability Prediction
+
+The win probability model uses player performance metrics to predict match outcomes, with special handling for role and champion context:
+
+```python
+from pathlib import Path
+from lol_data_center.ml.win_probability import (
+    WinProbabilityPredictor,
+    extract_participant_features_for_prediction
+)
+
+# Load trained model
+predictor = WinProbabilityPredictor(
+    model_path=Path("models/win_probability_model.pkl"),
+    scaler_path=Path("models/scaler.pkl"),
+    pca_path=Path("models/pca.pkl"),
+)
+
+# Extract features and predict
+features = extract_participant_features_for_prediction(participant, game_duration)
+result = predictor.predict_win_probability(features, role="TOP", champion="Aatrox")
+
+print(f"Win probability: {result['win_probability']:.2%}")
+```
+
+### Research and Training
+
+Research notebooks are available in the `notebooks/` directory:
+
+```bash
+# Install research dependencies
+pip install -e ".[research]"
+
+# Start Jupyter Lab
+jupyter lab
+
+# Open notebooks/win_probability_research.ipynb
+```
+
+The research notebook includes:
+- Data exploration with role and champion context analysis
+- PCA feature reduction
+- Model comparison (Logistic Regression, Random Forest, SVM)
+- Outlier detection for surprising match outcomes
+- Model persistence for production use
+
+See `docs/win_probability_research.md` for detailed findings and recommendations.
 
 ## Testing
 
