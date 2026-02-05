@@ -33,6 +33,7 @@ COPY --from=builder /usr/local/bin/lol-data-center /usr/local/bin/lol-data-cente
 COPY achievements.yaml ./
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
+COPY --chown=appuser:appuser notebooks/ ./notebooks/
 
 # Create directory for invalid API responses
 RUN mkdir -p /app/data/invalid_responses && chown -R appuser:appuser /app
