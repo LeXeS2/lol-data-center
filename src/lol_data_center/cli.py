@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import subprocess
+import sys
 from collections.abc import Coroutine
 from typing import Any, TypeVar
 
@@ -240,14 +242,28 @@ def toggle_polling(
 @app.command()
 def migrate() -> None:
     """Run database migrations."""
+
     configure_logging()
     console.print("[bold]Running database migrations...[/bold]")
 
-    async def _migrate() -> None:
-        await init_db()
-        console.print("[bold green]✓[/bold green] Database initialized")
-
-    run_async(_migrate())
+    try:
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        if result.stdout:
+            console.print(result.stdout)
+        console.print("[bold green]✓[/bold green] Migrations complete")
+    except subprocess.CalledProcessError as e:
+        console.print(f"[bold red]Error:[/bold red] Migration failed")
+        if e.stderr:
+            console.print(e.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        console.print("[bold red]Error:[/bold red] Alembic not found. Install with: pip install alembic")
+        sys.exit(1)
 
 
 @app.command()

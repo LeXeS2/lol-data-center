@@ -44,5 +44,5 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import sys; sys.exit(0)"
 
-ENTRYPOINT ["lol-data-center"]
-CMD ["run"]
+ENTRYPOINT ["sh", "-c"]
+CMD ["lol-data-center migrate && lol-data-center run"]
