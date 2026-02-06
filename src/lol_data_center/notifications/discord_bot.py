@@ -896,6 +896,168 @@ class DiscordBot:
             except Exception as e:
                 await send_error_response(interaction, e, "elo-graph")
 
+        @self._tree.command(
+            name="win-probability-plot",
+            description="Show win probability over time for a player's match",
+        )
+        @app_commands.describe(
+            riot_id="Player's Riot ID in format: GameName#TAG (optional if registered)",
+            game_index="Which game to plot (1=most recent, 2=2nd most recent, etc. Default: 1)",
+        )
+        async def win_probability_plot_command(
+            interaction: discord.Interaction,
+            riot_id: str | None = None,
+            game_index: int = 1,
+        ) -> None:
+            """Show win probability over time plot for a player's match."""
+            await interaction.response.defer(thinking=True)
+
+            try:
+                # Validate game_index parameter
+                if game_index < 1:
+                    await interaction.followup.send(
+                        f"❌ Invalid game index: {game_index}\n"
+                        f"Game index must be >= 1 (1 = most recent game)",
+                        ephemeral=True,
+                    )
+                    return
+
+                async with get_async_session() as session:
+                    # Determine which Riot ID to use
+                    if riot_id:
+                        # Use provided Riot ID
+                        game_name, tag_line = parse_riot_id(riot_id)
+                        used_riot_id = riot_id
+                    else:
+                        # Try to use registered Riot ID
+                        registration = await get_registered_riot_id(
+                            session,
+                            str(interaction.user.id),
+                        )
+                        if registration is None:
+                            await send_riot_id_missing_error(interaction, "win-probability-plot")
+                            return
+                        game_name, tag_line, used_riot_id = registration
+
+                    # Get player
+                    service = PlayerService(session)
+                    player = await get_player_or_error(
+                        interaction, service, game_name, tag_line, used_riot_id
+                    )
+
+                    if player is None:
+                        return
+
+                    # Get the nth last match
+                    from lol_data_center.services.win_probability_plot_service import (
+                        WinProbabilityPlotService,
+                    )
+
+                    plot_service = WinProbabilityPlotService(session)
+
+                    try:
+                        match_and_participant = await plot_service.get_player_nth_last_match(
+                            player.puuid, game_index
+                        )
+                    except ValueError as e:
+                        await interaction.followup.send(
+                            f"❌ Error: {str(e)}",
+                            ephemeral=True,
+                        )
+                        return
+
+                    if match_and_participant is None:
+                        await interaction.followup.send(
+                            f"❌ Could not find game #{game_index} for **{used_riot_id}**.\n"
+                            f"This player may not have that many games tracked.",
+                            ephemeral=True,
+                        )
+                        logger.info(
+                            "Game not found for player",
+                            puuid=player.puuid,
+                            riot_id=used_riot_id,
+                            game_index=game_index,
+                        )
+                        return
+
+                    match, participant = match_and_participant
+
+                    # Check if win probability model is available
+                    from pathlib import Path
+
+                    from lol_data_center.ml.win_probability import WinProbabilityPredictor
+
+                    # Try to load model from default location
+                    model_path = Path("models/win_probability_model.pkl")
+                    scaler_path = Path("models/win_probability_scaler.pkl")
+                    pca_path = Path("models/win_probability_pca.pkl")
+
+                    predictor = WinProbabilityPredictor(
+                        model_path=model_path if model_path.exists() else None,
+                        scaler_path=scaler_path if scaler_path.exists() else None,
+                        pca_path=pca_path if pca_path.exists() else None,
+                    )
+
+                    # Generate plot
+                    try:
+                        plot_buffer = await plot_service.generate_win_probability_plot(
+                            match_id=match.match_id,
+                            puuid=player.puuid,
+                            predictor=predictor,
+                        )
+                    except ValueError as e:
+                        await interaction.followup.send(
+                            f"❌ {str(e)}\n\n"
+                            f"Timeline data or win probability model may not be available for this match.",
+                            ephemeral=True,
+                        )
+                        logger.info(
+                            "Failed to generate win probability plot",
+                            match_id=match.match_id,
+                            puuid=player.puuid,
+                            error=str(e),
+                        )
+                        return
+
+                    # Send plot as image
+                    file = discord.File(plot_buffer, filename="win_probability_plot.png")
+                    embed = discord.Embed(
+                        title=f"📊 Win Probability Plot - {used_riot_id}",
+                        description=f"Match #{game_index} (most recent = 1)",
+                        color=discord.Color.blue(),
+                    )
+                    embed.set_image(url="attachment://win_probability_plot.png")
+                    embed.add_field(
+                        name="Champion",
+                        value=participant.champion_name,
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="Result",
+                        value="Victory" if participant.win else "Defeat",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="KDA",
+                        value=f"{participant.kills}/{participant.deaths}/{participant.assists}",
+                        inline=True,
+                    )
+
+                    await interaction.followup.send(embed=embed, file=file)
+
+                    logger.info(
+                        "Win probability plot sent via Discord bot",
+                        riot_id=used_riot_id,
+                        user=str(interaction.user),
+                        match_id=match.match_id,
+                        game_index=game_index,
+                    )
+
+            except (ValidationError, ValueError) as e:
+                await send_error_response(interaction, e)
+            except Exception as e:
+                await send_error_response(interaction, e, "win-probability-plot")
+
     async def _backfill_and_notify(
         self,
         interaction: discord.Interaction,
