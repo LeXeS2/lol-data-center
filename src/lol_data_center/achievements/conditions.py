@@ -17,6 +17,10 @@ from lol_data_center.services.match_service import MatchService
 
 logger = get_logger(__name__)
 
+# Baseline duration for achievement normalization (30 minutes in seconds)
+# Most ranked games last approximately 25-35 minutes, making 30 minutes a representative baseline
+BASELINE_DURATION_SECONDS = 1800
+
 
 class BaseCondition(ABC):
     """Base class for achievement conditions."""
@@ -35,6 +39,7 @@ class BaseCondition(ABC):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if the condition is met.
 
@@ -42,20 +47,22 @@ class BaseCondition(ABC):
             player: The tracked player
             participant: The player's match stats
             session: Database session
+            game_duration: Game duration in seconds
 
         Returns:
             AchievementResult with triggered status and message
         """
         pass
 
-    def _get_stat_value(self, participant: ParticipantDto) -> float:
+    def _get_stat_value(self, participant: ParticipantDto, game_duration: int) -> float:
         """Get the stat value from participant data.
 
         Args:
             participant: The participant data
+            game_duration: Game duration in seconds
 
         Returns:
-            The stat value
+            The stat value, normalized by game duration if configured
         """
         stat_field = self.definition.stat_field
 
@@ -66,9 +73,37 @@ class BaseCondition(ABC):
         # Get attribute from participant
         if hasattr(participant, stat_field):
             value = getattr(participant, stat_field)
-            return float(value)
+            raw_value = float(value)
+
+            # Apply duration normalization if enabled
+            if self.definition.normalize_by_duration:
+                return self._normalize_to_30_minutes(raw_value, game_duration)
+
+            return raw_value
 
         raise ValueError(f"Unknown stat field: {stat_field}")
+
+    def _normalize_to_30_minutes(self, value: float, game_duration: int) -> float:
+        """Normalize a stat value to a 30-minute game baseline.
+
+        The 30-minute baseline was chosen because:
+        - Most ranked games last approximately 25-35 minutes
+        - It represents a typical game duration in League of Legends
+        - Achievement thresholds are designed around this duration
+
+        Args:
+            value: The raw stat value
+            game_duration: Game duration in seconds
+
+        Returns:
+            The normalized value as if the game lasted 30 minutes
+        """
+        # Avoid division by zero
+        if game_duration <= 0:
+            return value
+
+        # Normalize: (value / actual_duration) * baseline_duration
+        return (value / game_duration) * BASELINE_DURATION_SECONDS
 
 
 class AbsoluteCondition(BaseCondition):
@@ -79,9 +114,10 @@ class AbsoluteCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if the stat meets the threshold."""
-        value = self._get_stat_value(participant)
+        value = self._get_stat_value(participant, game_duration)
         threshold = self.definition.threshold
         operator = self.definition.operator
 
@@ -125,9 +161,10 @@ class PersonalMaxCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if this is a new personal maximum."""
-        value = self._get_stat_value(participant)
+        value = self._get_stat_value(participant, game_duration)
 
         # Get the record field name for this stat
         record_field = self._get_record_field()
@@ -190,9 +227,10 @@ class PersonalMinCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if this is a new personal minimum."""
-        value = self._get_stat_value(participant)
+        value = self._get_stat_value(participant, game_duration)
 
         # Check minimum value threshold
         min_value = self.definition.min_value
@@ -253,9 +291,10 @@ class PopulationPercentileCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if the stat is in the target percentile."""
-        value = self._get_stat_value(participant)
+        value = self._get_stat_value(participant, game_duration)
         target_percentile = self.definition.percentile
         direction = self.definition.direction
 
@@ -297,9 +336,10 @@ class PlayerPercentileCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if the stat is in the target percentile for this player."""
-        value = self._get_stat_value(participant)
+        value = self._get_stat_value(participant, game_duration)
         target_percentile = self.definition.percentile
         direction = self.definition.direction
 
@@ -340,9 +380,10 @@ class ConsecutiveCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if the condition is met across N consecutive games."""
-        value = self._get_stat_value(participant)
+        value = self._get_stat_value(participant, game_duration)
         consecutive_count = self.definition.consecutive_count
         threshold = self.definition.threshold
         operator = self.definition.operator
@@ -384,7 +425,9 @@ class ConsecutiveCondition(BaseCondition):
 
         # Check if all previous N-1 games also meet the condition
         for match_participant in recent_matches:
-            prev_value = self._get_stat_value_from_participant(match_participant)
+            # Get game duration from the match relationship
+            match_duration = match_participant.match.game_duration
+            prev_value = self._get_stat_value_from_participant(match_participant, match_duration)
             if not self._compare(prev_value, operator, threshold):
                 return AchievementResult(
                     achievement=self.definition,
@@ -401,14 +444,17 @@ class ConsecutiveCondition(BaseCondition):
             current_value=value,
         )
 
-    def _get_stat_value_from_participant(self, participant: MatchParticipant) -> float:
+    def _get_stat_value_from_participant(
+        self, participant: MatchParticipant, game_duration: int
+    ) -> float:
         """Get the stat value from a MatchParticipant database model.
 
         Args:
             participant: The MatchParticipant model instance
+            game_duration: Game duration in seconds
 
         Returns:
-            The stat value
+            The stat value, normalized by game duration if configured
         """
         stat_field = self.definition.stat_field
 
@@ -419,7 +465,13 @@ class ConsecutiveCondition(BaseCondition):
         # Get attribute from participant
         if hasattr(participant, stat_field):
             value = getattr(participant, stat_field)
-            return float(value)
+            raw_value = float(value)
+
+            # Apply duration normalization if enabled
+            if self.definition.normalize_by_duration:
+                return self._normalize_to_30_minutes(raw_value, game_duration)
+
+            return raw_value
 
         raise ValueError(f"Unknown stat field: {stat_field}")
 
