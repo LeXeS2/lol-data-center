@@ -1008,7 +1008,8 @@ class DiscordBot:
                     except ValueError as e:
                         await interaction.followup.send(
                             f"❌ {str(e)}\n\n"
-                            f"Timeline data or win probability model may not be available for this match.",
+                            f"Timeline data or win probability model may not be available "
+                            f"for this match.",
                             ephemeral=True,
                         )
                         logger.info(

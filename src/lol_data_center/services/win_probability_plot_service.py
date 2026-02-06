@@ -1,7 +1,6 @@
 """Service for generating win probability over time plots."""
 
 from io import BytesIO
-from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -91,10 +90,14 @@ class WinProbabilityPlotService:
             "game_duration_minutes": game_duration_minutes,
             "champion_level": frame.level,
             # Economy (available in frames)
-            "gold_per_min": frame.total_gold / game_duration_minutes if game_duration_minutes > 0 else 0,
-            "cs_per_min": (frame.minions_killed + frame.jungle_minions_killed) / game_duration_minutes
-            if game_duration_minutes > 0
-            else 0,
+            "gold_per_min": (
+                frame.total_gold / game_duration_minutes if game_duration_minutes > 0 else 0
+            ),
+            "cs_per_min": (
+                (frame.minions_killed + frame.jungle_minions_killed) / game_duration_minutes
+                if game_duration_minutes > 0
+                else 0
+            ),
             # Damage (available in frames but nullable)
             "damage_per_min": (frame.total_damage_done_to_champions or 0) / game_duration_minutes
             if game_duration_minutes > 0
@@ -184,7 +187,8 @@ class WinProbabilityPlotService:
             # Predict win probability
             try:
                 prediction = predictor.predict_win_probability(features)
-                win_probabilities.append(prediction["win_probability"] * 100)  # Convert to percentage
+                # Convert to percentage
+                win_probabilities.append(prediction["win_probability"] * 100)
             except Exception as e:
                 logger.warning(
                     "Failed to predict win probability for frame",
