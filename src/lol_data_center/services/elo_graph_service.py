@@ -77,8 +77,7 @@ class EloGraphService:
         # Extract data for plotting
         timestamps = [record.recorded_at for record in rank_history]
         elos = [
-            calculate_elo(record.tier, record.rank, record.league_points)
-            for record in rank_history
+            calculate_elo(record.tier, record.rank, record.league_points) for record in rank_history
         ]
 
         # Create the plot

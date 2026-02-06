@@ -170,7 +170,9 @@ class MatchService:
                     # Utility
                     "total_heal": participant.total_heal,
                     "total_heals_on_teammates": participant.total_heals_on_teammates,
-                    "total_damage_shielded_on_teammates": participant.total_damage_shielded_on_teammates,
+                    "total_damage_shielded_on_teammates": (
+                        participant.total_damage_shielded_on_teammates
+                    ),
                     "total_time_cc_dealt": participant.total_time_cc_dealt,
                     "time_ccing_others": participant.time_ccing_others,
                     # Game State

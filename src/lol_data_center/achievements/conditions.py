@@ -469,9 +469,7 @@ class WinProbabilityCondition(BaseCondition):
         threshold = self.definition.threshold
 
         if threshold is None:
-            raise ValueError(
-                f"Win probability condition requires threshold: {self.definition.id}"
-            )
+            raise ValueError(f"Win probability condition requires threshold: {self.definition.id}")
 
         # If no prediction is available, achievement cannot be triggered
         if predicted_prob is None:

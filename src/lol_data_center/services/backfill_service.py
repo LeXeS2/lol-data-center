@@ -7,8 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from lol_data_center.api_client.riot_client import Region, RiotApiClient
 from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.logging_config import get_logger
-from lol_data_center.services.match_service import MatchService
 from lol_data_center.services.filters import is_allowed_queue
+from lol_data_center.services.match_service import MatchService
 
 logger = get_logger(__name__)
 
