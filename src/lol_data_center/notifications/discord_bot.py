@@ -364,7 +364,29 @@ class DiscordBot:
                         game_name, tag_line, region_enum, platform_enum
                     )
 
-                    # Send initial response with estimated time
+                    # Pre-fetch match IDs and get estimate
+                    backfill_service = BackfillService(session)
+                    total_matches, estimated_seconds = (
+                        await backfill_service.get_match_count_and_estimate(
+                            player, region_enum
+                        )
+                    )
+
+                    # Format estimated time
+                    if estimated_seconds < 60:
+                        time_str = f"{estimated_seconds} seconds"
+                    elif estimated_seconds < 3600:
+                        minutes = estimated_seconds // 60
+                        time_str = f"{minutes} minute{'s' if minutes != 1 else ''}"
+                    else:
+                        hours = estimated_seconds // 3600
+                        minutes = (estimated_seconds % 3600) // 60
+                        time_str = (
+                            f"{hours} hour{'s' if hours != 1 else ''} "
+                            f"and {minutes} minute{'s' if minutes != 1 else ''}"
+                        )
+
+                    # Send initial response with accurate match count and estimated time
                     embed = discord.Embed(
                         title="⏳ Adding Player...",
                         description=f"**{player.riot_id}** is being added to tracking.",
@@ -373,9 +395,10 @@ class DiscordBot:
                     embed.add_field(name="Region", value=player.region, inline=True)
                     embed.add_field(name="Platform", value=platform, inline=True)
                     embed.add_field(
-                        name="📊 Status",
+                        name="📊 Match Collection",
                         value=(
-                            "Fetching match history (this may take 10-15 minutes)\n"
+                            f"**{total_matches}** matches to collect\n"
+                            f"Estimated time: ~{time_str}\n"
                             "You will receive a notification when complete."
                         ),
                         inline=False,
@@ -1091,8 +1114,8 @@ class DiscordBot:
 
             # Send success notification
             embed = discord.Embed(
-                title="✅ Player Added Successfully",
-                description=f"**{player.riot_id}** is now being tracked!",
+                title="✅ Player Data Ready",
+                description=f"**{player.riot_id}** data collection is complete!",
                 color=discord.Color.green(),
             )
             embed.add_field(name="Region", value=player.region, inline=True)
@@ -1103,7 +1126,7 @@ class DiscordBot:
             )
             embed.add_field(
                 name="📈 Status",
-                value="Ready to track new matches!",
+                value="Player is now being tracked and ready for rankings and achievements!",
                 inline=False,
             )
 
