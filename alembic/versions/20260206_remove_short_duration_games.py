@@ -33,7 +33,7 @@ MINIMUM_GAME_DURATION_SECONDS = 600
 
 def upgrade() -> None:
     """Delete matches with duration less than 10 minutes.
-    
+
     This removes illegitimate games (remakes, early disconnects) from the database.
     The CASCADE DELETE constraint automatically removes related records in:
     - match_participants
@@ -52,7 +52,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """No downgrade path - deleted data cannot be recovered.
-    
+
     If you need to restore this data, you must re-fetch it from Riot API
     using the backfill functionality.
     """

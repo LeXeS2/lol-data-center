@@ -58,9 +58,6 @@ class TestRemoveShortDurationGamesMigration:
         # Simulate migration by deleting short games
         minimum_duration = 600
 
-        await async_session.execute(
-            select(Match).where(Match.game_duration < minimum_duration)
-        )
         short_games = (
             await async_session.execute(
                 select(Match).where(Match.game_duration < minimum_duration)
