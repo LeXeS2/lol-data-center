@@ -395,4 +395,3 @@ class TestBackfillService:
 
         # Verify estimate (500 * 1.2 = 600 seconds = 10 minutes)
         assert estimated_seconds == 600
-
