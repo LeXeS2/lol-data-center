@@ -55,7 +55,7 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session)
+        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
         assert result.triggered is True
 
@@ -91,7 +91,7 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session)
+        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
         assert result.triggered is False
 
@@ -133,7 +133,7 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session)
+        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
         assert result.triggered is False
 
@@ -169,7 +169,7 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session)
+        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
         assert result.triggered is False
 
@@ -208,7 +208,7 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session)
+        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
         assert result.triggered is True
 
@@ -235,7 +235,7 @@ class TestConsecutiveCondition:
 
         condition = ConsecutiveCondition(definition)
         with pytest.raises(ValueError, match="requires consecutive_count"):
-            await condition.evaluate(sample_player, sample_participant_dto, async_session)
+            await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
         # Missing operator
         definition2 = AchievementDefinition(
@@ -252,7 +252,7 @@ class TestConsecutiveCondition:
 
         condition2 = ConsecutiveCondition(definition2)
         with pytest.raises(ValueError, match="requires threshold and operator"):
-            await condition2.evaluate(sample_player, sample_participant_dto, async_session)
+            await condition2.evaluate(sample_player, sample_participant_dto, async_session, 1800)
 
     async def _create_previous_matches(
         self,

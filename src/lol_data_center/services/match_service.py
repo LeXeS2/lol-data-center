@@ -493,10 +493,11 @@ class MatchService:
             limit: Maximum number of matches to return
 
         Returns:
-            List of MatchParticipant records
+            List of MatchParticipant records with match relationship loaded
         """
         result = await self._session.execute(
             select(MatchParticipant)
+            .options(selectinload(MatchParticipant.match))  # Eagerly load the match relationship
             .where(MatchParticipant.puuid == puuid)
             .order_by(MatchParticipant.game_creation.desc())
             .limit(limit)
