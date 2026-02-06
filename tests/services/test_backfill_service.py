@@ -315,3 +315,84 @@ class TestBackfillService:
         # But progress should be called for all 3 matches
         assert len(progress_calls) == 3
         assert progress_calls == [(1, 3), (2, 3), (3, 3)]
+
+    @pytest.mark.asyncio
+    async def test_get_match_count_and_estimate(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
+        """Test get_match_count_and_estimate returns correct count and estimate."""
+        # Create mock client
+        mock_client = MagicMock(spec=RiotApiClient)
+        match_ids = ["EUW1_MATCH_1", "EUW1_MATCH_2", "EUW1_MATCH_3"]
+        mock_client.fetch_all_match_ids = AsyncMock(return_value=match_ids)
+
+        service = BackfillService(async_session, mock_client)
+
+        total_matches, estimated_seconds = await service.get_match_count_and_estimate(
+            player=sample_player,
+            region=Region.EUROPE,
+        )
+
+        # Verify match count
+        assert total_matches == 3
+
+        # Verify estimate is reasonable (should be ~3.6 seconds for 3 matches)
+        # Using SECONDS_PER_MATCH_ESTIMATE = 1.2
+        assert estimated_seconds == 3  # int(3 * 1.2) = 3
+
+        # Verify fetch_all_match_ids was called correctly
+        mock_client.fetch_all_match_ids.assert_called_once_with(
+            puuid=sample_player.puuid,
+            region=Region.EUROPE,
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_match_count_and_estimate_no_matches(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
+        """Test get_match_count_and_estimate with no matches."""
+        # Create mock client
+        mock_client = MagicMock(spec=RiotApiClient)
+        mock_client.fetch_all_match_ids = AsyncMock(return_value=[])
+
+        service = BackfillService(async_session, mock_client)
+
+        total_matches, estimated_seconds = await service.get_match_count_and_estimate(
+            player=sample_player,
+            region=Region.EUROPE,
+        )
+
+        # Verify zero matches and zero time
+        assert total_matches == 0
+        assert estimated_seconds == 0
+
+    @pytest.mark.asyncio
+    async def test_get_match_count_and_estimate_large_history(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+    ) -> None:
+        """Test get_match_count_and_estimate with large match history."""
+        # Create mock client
+        mock_client = MagicMock(spec=RiotApiClient)
+        # Simulate 500 matches
+        match_ids = [f"EUW1_MATCH_{i}" for i in range(500)]
+        mock_client.fetch_all_match_ids = AsyncMock(return_value=match_ids)
+
+        service = BackfillService(async_session, mock_client)
+
+        total_matches, estimated_seconds = await service.get_match_count_and_estimate(
+            player=sample_player,
+            region=Region.EUROPE,
+        )
+
+        # Verify match count
+        assert total_matches == 500
+
+        # Verify estimate (500 * 1.2 = 600 seconds = 10 minutes)
+        assert estimated_seconds == 600
+
