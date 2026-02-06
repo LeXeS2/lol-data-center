@@ -82,6 +82,11 @@ class BaseCondition(ABC):
     def _normalize_to_30_minutes(self, value: float, game_duration: int) -> float:
         """Normalize a stat value to a 30-minute game baseline.
 
+        The 30-minute baseline was chosen because:
+        - Most ranked games last approximately 25-35 minutes
+        - It represents a typical game duration in League of Legends
+        - Achievement thresholds are designed around this duration
+
         Args:
             value: The raw stat value
             game_duration: Game duration in seconds
