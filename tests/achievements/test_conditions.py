@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from lol_data_center.achievements.conditions import (
+    BASELINE_DURATION_SECONDS,
     AbsoluteCondition,
     PersonalMaxCondition,
     PersonalMinCondition,
@@ -47,7 +48,9 @@ class TestAbsoluteCondition:
         )
 
         condition = AbsoluteCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is True
         assert result.current_value == 10  # From sample_participant_dto
@@ -72,7 +75,9 @@ class TestAbsoluteCondition:
         )
 
         condition = AbsoluteCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is False
         assert result.current_value == 10
@@ -100,7 +105,9 @@ class TestAbsoluteCondition:
         )
 
         condition = AbsoluteCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is True
         assert result.current_value == 0
@@ -130,7 +137,9 @@ class TestPersonalMaxCondition:
         )
 
         condition = PersonalMaxCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is True
         assert result.current_value == 20
@@ -157,7 +166,9 @@ class TestPersonalMaxCondition:
         )
 
         condition = PersonalMaxCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is False
 
@@ -187,7 +198,9 @@ class TestPersonalMinCondition:
         )
 
         condition = PersonalMinCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is True
         assert result.current_value == 1
@@ -214,7 +227,9 @@ class TestPersonalMinCondition:
         )
 
         condition = PersonalMinCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         # Should not trigger because 0 < min_value of 1
         assert result.triggered is False

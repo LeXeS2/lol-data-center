@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from lol_data_center.achievements.conditions import ConsecutiveCondition
+from lol_data_center.achievements.conditions import BASELINE_DURATION_SECONDS, ConsecutiveCondition
 from lol_data_center.database.models import Match, MatchParticipant, TrackedPlayer
 from lol_data_center.schemas.achievements import (
     AchievementDefinition,
@@ -55,7 +55,9 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is True
 
@@ -91,7 +93,9 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is False
 
@@ -133,7 +137,9 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is False
 
@@ -169,7 +175,9 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is False
 
@@ -208,7 +216,9 @@ class TestConsecutiveCondition:
         )
 
         condition = ConsecutiveCondition(definition)
-        result = await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+        result = await condition.evaluate(
+            sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+        )
 
         assert result.triggered is True
 
@@ -235,7 +245,9 @@ class TestConsecutiveCondition:
 
         condition = ConsecutiveCondition(definition)
         with pytest.raises(ValueError, match="requires consecutive_count"):
-            await condition.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+            await condition.evaluate(
+                sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+            )
 
         # Missing operator
         definition2 = AchievementDefinition(
@@ -252,7 +264,9 @@ class TestConsecutiveCondition:
 
         condition2 = ConsecutiveCondition(definition2)
         with pytest.raises(ValueError, match="requires threshold and operator"):
-            await condition2.evaluate(sample_player, sample_participant_dto, async_session, 1800)
+            await condition2.evaluate(
+                sample_player, sample_participant_dto, async_session, BASELINE_DURATION_SECONDS
+            )
 
     async def _create_previous_matches(
         self,
@@ -275,8 +289,8 @@ class TestConsecutiveCondition:
                 match_id=match_id,
                 data_version="2",
                 game_creation=game_creation,
-                game_duration=1800,
-                game_end_timestamp=game_creation + timedelta(seconds=1800),
+                game_duration=BASELINE_DURATION_SECONDS,
+                game_end_timestamp=game_creation + timedelta(seconds=BASELINE_DURATION_SECONDS),
                 game_mode="CLASSIC",
                 game_name="",
                 game_type="MATCHED_GAME",
@@ -351,7 +365,7 @@ class TestConsecutiveCondition:
                 first_tower_assist=False,
                 game_ended_in_surrender=False,
                 game_ended_in_early_surrender=False,
-                time_played=1800,
+                time_played=BASELINE_DURATION_SECONDS,
                 item0=0,
                 item1=0,
                 item2=0,
@@ -386,8 +400,8 @@ class TestConsecutiveCondition:
                 match_id=match_id,
                 data_version="2",
                 game_creation=game_creation,
-                game_duration=1800,
-                game_end_timestamp=game_creation + timedelta(seconds=1800),
+                game_duration=BASELINE_DURATION_SECONDS,
+                game_end_timestamp=game_creation + timedelta(seconds=BASELINE_DURATION_SECONDS),
                 game_mode="CLASSIC",
                 game_name="",
                 game_type="MATCHED_GAME",
@@ -462,7 +476,7 @@ class TestConsecutiveCondition:
                 first_tower_assist=False,
                 game_ended_in_surrender=False,
                 game_ended_in_early_surrender=False,
-                time_played=1800,
+                time_played=BASELINE_DURATION_SECONDS,
                 item0=0,
                 item1=0,
                 item2=0,

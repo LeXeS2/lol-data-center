@@ -17,6 +17,10 @@ from lol_data_center.services.match_service import MatchService
 
 logger = get_logger(__name__)
 
+# Baseline duration for achievement normalization (30 minutes in seconds)
+# Most ranked games last approximately 25-35 minutes, making 30 minutes a representative baseline
+BASELINE_DURATION_SECONDS = 1800
+
 
 class BaseCondition(ABC):
     """Base class for achievement conditions."""
@@ -92,17 +96,14 @@ class BaseCondition(ABC):
             game_duration: Game duration in seconds
 
         Returns:
-            The normalized value as if the game lasted 30 minutes (1800 seconds)
+            The normalized value as if the game lasted 30 minutes
         """
-        # Baseline: 30 minutes = 1800 seconds
-        baseline_duration = 1800
-
         # Avoid division by zero
         if game_duration <= 0:
             return value
 
         # Normalize: (value / actual_duration) * baseline_duration
-        return (value / game_duration) * baseline_duration
+        return (value / game_duration) * BASELINE_DURATION_SECONDS
 
 
 class AbsoluteCondition(BaseCondition):

@@ -7,12 +7,10 @@ from typing import TYPE_CHECKING
 import pytest
 
 from lol_data_center.achievements.conditions import (
+    BASELINE_DURATION_SECONDS,
     AbsoluteCondition,
-    ConsecutiveCondition,
     PersonalMaxCondition,
     PersonalMinCondition,
-    PlayerPercentileCondition,
-    PopulationPercentileCondition,
 )
 from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.schemas.achievements import (
@@ -106,7 +104,7 @@ class TestDurationNormalization:
     ) -> None:
         """Test that 30-minute games are not affected by normalization."""
         sample_participant_dto.kills = 10
-        game_duration = 1800  # Exactly 30 minutes
+        game_duration = BASELINE_DURATION_SECONDS  # Exactly 30 minutes
 
         definition = AchievementDefinition(
             id="high_kills",

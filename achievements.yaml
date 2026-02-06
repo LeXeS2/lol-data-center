@@ -24,7 +24,7 @@ achievements:
     operator: ">="
     threshold: 10
     normalize_by_duration: true  # Normalize to 30-minute baseline
-    message_template: "🎯 **{player_name}** achieved **{achievement_name}**! They got {value:.1f} kills (30-min equivalent) in their last game!"
+    message_template: "🎯 **{player_name}** achieved **{achievement_name}**! They got {value:.1f} kills in their last game!"
 
   - id: perfect_game
     name: "Perfect Game"
@@ -44,7 +44,7 @@ achievements:
     operator: ">="
     threshold: 20
     normalize_by_duration: true
-    message_template: "🤝 **{player_name}** is the **{achievement_name}**! They got {value:.1f} assists (30-min equivalent)!"
+    message_template: "🤝 **{player_name}** is the **{achievement_name}**! They got {value:.1f} assists!"
 
   - id: cs_master
     name: "CS Master"
@@ -54,7 +54,7 @@ achievements:
     operator: ">="
     threshold: 300
     normalize_by_duration: true
-    message_template: "🌾 **{player_name}** is a **{achievement_name}**! They farmed {value:.0f} minions (30-min equivalent)!"
+    message_template: "🌾 **{player_name}** is a **{achievement_name}**! They farmed {value:.0f} minions!"
 
   - id: high_damage
     name: "Damage Dealer"
@@ -64,7 +64,7 @@ achievements:
     operator: ">="
     threshold: 50000
     normalize_by_duration: true
-    message_template: "💥 **{player_name}** is a **{achievement_name}**! They dealt {value:,.0f} damage to champions (30-min equivalent)!"
+    message_template: "💥 **{player_name}** is a **{achievement_name}**! They dealt {value:,.0f} damage to champions!"
 
   - id: vision_master
     name: "Vision Master"
@@ -74,7 +74,7 @@ achievements:
     operator: ">="
     threshold: 30
     normalize_by_duration: true
-    message_template: "👁️ **{player_name}** is a **{achievement_name}**! They placed {value:.0f} wards (30-min equivalent)!"
+    message_template: "👁️ **{player_name}** is a **{achievement_name}**! They placed {value:.0f} wards!"
 
   # Personal record achievements
   - id: new_kill_record
@@ -83,7 +83,7 @@ achievements:
     stat_field: kills
     condition_type: personal_max
     normalize_by_duration: true
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.1f} kills (30-min equivalent)! (Previous: {previous_value:.1f})"
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.1f} kills! (Previous: {previous_value:.1f})"
 
   - id: new_assist_record
     name: "New Assist Record"
@@ -91,7 +91,7 @@ achievements:
     stat_field: assists
     condition_type: personal_max
     normalize_by_duration: true
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.1f} assists (30-min equivalent)! (Previous: {previous_value:.1f})"
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.1f} assists! (Previous: {previous_value:.1f})"
 
   - id: new_cs_record
     name: "New CS Record"
@@ -99,7 +99,7 @@ achievements:
     stat_field: total_minions_killed
     condition_type: personal_max
     normalize_by_duration: true
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.0f} CS (30-min equivalent)! (Previous: {previous_value:.0f})"
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.0f} CS! (Previous: {previous_value:.0f})"
 
   - id: new_damage_record
     name: "New Damage Record"
@@ -107,7 +107,7 @@ achievements:
     stat_field: total_damage_dealt_to_champions
     condition_type: personal_max
     normalize_by_duration: true
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:,.0f} damage (30-min equivalent)! (Previous: {previous_value:,.0f})"
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:,.0f} damage! (Previous: {previous_value:,.0f})"
 
   # Negative records (personal_min - lower is "better" for these stats)
   - id: fewest_deaths
@@ -117,7 +117,7 @@ achievements:
     condition_type: personal_min
     min_value: 1  # Exclude perfect games (0 deaths)
     normalize_by_duration: true
-    message_template: "🛡️ **{player_name}** achieved **{achievement_name}**! Only {value:.1f} deaths (30-min equivalent)! (Previous best: {previous_value:.1f})"
+    message_template: "🛡️ **{player_name}** achieved **{achievement_name}**! Only {value:.1f} deaths! (Previous best: {previous_value:.1f})"
 
   # Population percentile achievements
   - id: top_killer
@@ -128,7 +128,7 @@ achievements:
     percentile: 95  # Top 5% = 95th percentile
     direction: high  # Higher is better
     normalize_by_duration: true
-    message_template: "🌟 **{player_name}** achieved **{achievement_name}**! {value:.1f} kills (30-min equivalent) puts them in the top 5% of all players!"
+    message_template: "🌟 **{player_name}** achieved **{achievement_name}**! {value:.1f} kills puts them in the top 5% of all players!"
 
   - id: elite_damage
     name: "Elite Damage"
@@ -138,7 +138,7 @@ achievements:
     percentile: 90  # Top 10% = 90th percentile
     direction: high
     normalize_by_duration: true
-    message_template: "🌟 **{player_name}** dealt **Elite Damage**! {value:,.0f} damage (30-min equivalent) puts them in the top 10% of all players!"
+    message_template: "🌟 **{player_name}** dealt **Elite Damage**! {value:,.0f} damage puts them in the top 10% of all players!"
 
   # Player percentile achievements (compared to own history)
   - id: personal_best_game
@@ -159,7 +159,7 @@ achievements:
     percentile: 90  # 90th percentile of deaths = worst 10%
     direction: high  # High deaths is "achieving" this
     normalize_by_duration: true
-    message_template: "💀 **{player_name}** had a **{achievement_name}**... {value:.1f} deaths (30-min equivalent) is in their worst 10% of games."
+    message_template: "💀 **{player_name}** had a **{achievement_name}**... {value:.1f} deaths is in their worst 10% of games."
 
   # Consecutive achievements (win streaks, etc.)
   - id: triple_win_streak
