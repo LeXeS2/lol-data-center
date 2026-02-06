@@ -387,11 +387,13 @@ class WinProbabilityPlotService:
                         notable_events["objectives"].append((timestamp_minutes, "Baron"))
                     elif monster_type == "DRAGON":
                         # Get dragon type if available
-                        dragon_type = ""
+                        dragon_type_suffix = ""
                         if monster_sub_type and isinstance(monster_sub_type, str):
-                            dragon_type = f" ({monster_sub_type.replace('_DRAGON', '').title()})"
+                            dragon_type_suffix = (
+                                f" ({monster_sub_type.replace('_DRAGON', '').title()})"
+                            )
                         notable_events["objectives"].append(
-                            (timestamp_minutes, f"Dragon{dragon_type}")
+                            (timestamp_minutes, f"Dragon{dragon_type_suffix}")
                         )
                     elif monster_type == "RIFTHERALD":
                         notable_events["objectives"].append((timestamp_minutes, "Herald"))
@@ -429,8 +431,12 @@ class WinProbabilityPlotService:
                     t_prev = timestamps_minutes[i - 1]
                     prob_prev = win_probabilities[i - 1]
                     prob_curr = win_probabilities[i]
-                    ratio = (event_time - t_prev) / (t - t_prev) if t != t_prev else 0
-                    return prob_prev + ratio * (prob_curr - prob_prev)
+                    # Use epsilon for floating-point comparison
+                    time_diff = t - t_prev
+                    if abs(time_diff) > 1e-6:  # Epsilon for numerical stability
+                        ratio = (event_time - t_prev) / time_diff
+                        return prob_prev + ratio * (prob_curr - prob_prev)
+                    return prob_prev
 
             # Event is after last frame
             return win_probabilities[-1] if win_probabilities else 50.0
@@ -584,7 +590,6 @@ class WinProbabilityPlotService:
             linewidth=2,
             markersize=4,
             color="#1f77b4",
-            label="Win Probability",
             zorder=3,
         )
 
