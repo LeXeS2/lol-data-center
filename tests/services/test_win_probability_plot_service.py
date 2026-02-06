@@ -226,18 +226,107 @@ async def test_extract_features_from_frame(
     )
     frame = result.scalar_one()
 
+    # Create mock event stats
+    event_stats = {
+        "kills": 2,
+        "deaths": 1,
+        "assists": 3,
+        "kda": 5.0,
+        "wards_placed": 5,
+        "wards_killed": 2,
+        "turret_takedowns": 1,
+        "inhibitor_takedowns": 0,
+        "baron_kills": 0,
+        "dragon_kills": 1,
+        "double_kills": 1,
+        "triple_kills": 0,
+        "quadra_kills": 0,
+        "penta_kills": 0,
+        "first_blood_kill": True,
+        "first_tower_kill": False,
+    }
+
     # Extract features
-    features = service._extract_features_from_frame(frame, frame.timestamp)
+    features = service._extract_features_from_frame(frame, frame.timestamp, event_stats)
 
     # Verify basic features are present
     assert "game_duration_minutes" in features
     assert "champion_level" in features
     assert "gold_per_min" in features
     assert "cs_per_min" in features
+    assert "kills" in features
+    assert "deaths" in features
 
     # Verify calculations
     assert features["champion_level"] == frame.level
     assert features["game_duration_minutes"] == frame.timestamp / 60000.0
+    assert features["kills"] == 2
+    assert features["deaths"] == 1
+    assert features["assists"] == 3
+
+
+@pytest.mark.asyncio
+async def test_extract_stats_from_events(
+    async_session: AsyncSession,
+) -> None:
+    """Test extracting stats from timeline events."""
+    service = WinProbabilityPlotService(async_session)
+
+    # Create sample events
+    events = [
+        {"type": "CHAMPION_KILL", "timestamp": 120000, "killerId": 1, "victimId": 2},
+        {"type": "CHAMPION_KILL", "timestamp": 180000, "killerId": 1, "victimId": 3},
+        {
+            "type": "CHAMPION_KILL",
+            "timestamp": 240000,
+            "killerId": 4,
+            "victimId": 1,
+        },  # Player dies
+        {
+            "type": "CHAMPION_KILL",
+            "timestamp": 300000,
+            "killerId": 5,
+            "victimId": 6,
+            "assistingParticipantIds": [1],
+        },
+        {"type": "WARD_PLACED", "timestamp": 60000, "creatorId": 1},
+        {"type": "WARD_PLACED", "timestamp": 120000, "creatorId": 1},
+        {"type": "WARD_KILL", "timestamp": 180000, "killerId": 1},
+        {
+            "type": "BUILDING_KILL",
+            "timestamp": 360000,
+            "killerId": 1,
+            "buildingType": "TURRET",
+        },
+        {
+            "type": "ELITE_MONSTER_KILL",
+            "timestamp": 480000,
+            "killerId": 1,
+            "monsterType": "DRAGON",
+        },
+        {
+            "type": "ELITE_MONSTER_KILL",
+            "timestamp": 1200000,
+            "killerId": 1,
+            "monsterType": "BARON_NASHOR",
+        },
+    ]
+
+    # Extract stats up to 10 minutes (600000 ms)
+    stats = service._extract_stats_from_events(events, participant_id=1, timestamp_ms=600000)
+
+    # Verify counts
+    assert stats["kills"] == 2  # 2 kills before death
+    assert stats["deaths"] == 1  # 1 death
+    assert stats["assists"] == 1  # 1 assist
+    assert stats["wards_placed"] == 2  # 2 wards
+    assert stats["wards_killed"] == 1  # 1 ward kill
+    assert stats["turret_takedowns"] == 1  # 1 turret
+    assert stats["dragon_kills"] == 1  # 1 dragon
+    assert stats["baron_kills"] == 0  # Baron kill is after timestamp
+
+    # KDA should be calculated
+    assert stats["kda"] == 3.0  # (2 + 1) / 1
 
 
 @pytest.mark.asyncio
