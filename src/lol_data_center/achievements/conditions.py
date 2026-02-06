@@ -500,6 +500,7 @@ class WinProbabilityCondition(BaseCondition):
         player: TrackedPlayer,
         participant: ParticipantDto,
         session: AsyncSession,
+        game_duration: int,
     ) -> AchievementResult:
         """Evaluate if the match resulted in a surprise outcome.
 
@@ -511,6 +512,7 @@ class WinProbabilityCondition(BaseCondition):
             player: The tracked player
             participant: The player's match stats
             session: Database session
+            game_duration: Game duration in seconds
 
         Returns:
             AchievementResult with triggered status and message
