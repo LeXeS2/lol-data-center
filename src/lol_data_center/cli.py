@@ -242,13 +242,16 @@ def toggle_polling(
 @app.command()
 def migrate() -> None:
     """Run database migrations."""
+    import subprocess
+    import sys
 
     configure_logging()
     console.print("[bold]Running database migrations...[/bold]")
 
     try:
+        # Use python -m alembic instead of alembic binary (works in Docker)
         result = subprocess.run(
-            ["alembic", "upgrade", "head"],
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
             check=True,
             capture_output=True,
             text=True,
@@ -257,12 +260,11 @@ def migrate() -> None:
             console.print(result.stdout)
         console.print("[bold green]✓[/bold green] Migrations complete")
     except subprocess.CalledProcessError as e:
-        console.print(f"[bold red]Error:[/bold red] Migration failed")
+        console.print("[bold red]Error:[/bold red] Migration failed")
         if e.stderr:
             console.print(e.stderr)
-        sys.exit(1)
-    except FileNotFoundError:
-        console.print("[bold red]Error:[/bold red] Alembic not found. Install with: pip install alembic")
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
         sys.exit(1)
 
 
