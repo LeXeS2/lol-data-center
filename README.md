@@ -8,6 +8,7 @@ A League of Legends match data collection, achievement evaluation, and machine l
 - **Rank Tracking**: Monitors player rank changes every 30 minutes and saves history
 - **ELO Graph Visualization**: Generate progression graphs showing rank changes over time
 - **Win Probability Prediction**: Machine learning model that predicts match outcomes based on performance metrics, accounting for role and champion context
+- **Win Probability Plot**: On-demand visualization of win probability changes over time for any match using timeline data
 - **Event-Driven Architecture**: Multiple components can listen for new match events
 - **Achievement Evaluation**: Flexible achievement system with multiple condition types:
   - Absolute thresholds (e.g., kills > 10)
@@ -136,6 +137,9 @@ The Discord bot enables interactive slash commands for managing players directly
    - `/elo-graph` - Generate ELO progression graph showing rank changes over time
      - Optional `last_weeks` parameter to limit time range
      - Optional `queue` parameter: `solo` (default) or `flex`
+   - `/win-probability-plot` - Generate win probability over time plot for a match
+     - Optional `game_index` parameter: 1 = most recent (default), 2 = second most recent, etc.
+     - Shows how win probability changed throughout the game based on ML model predictions
 
 Note: The Discord bot is optional. The application will run without it if `DISCORD_BOT_TOKEN` is not configured.
 
