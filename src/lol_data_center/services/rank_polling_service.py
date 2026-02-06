@@ -4,6 +4,8 @@ import asyncio
 from contextlib import suppress
 from datetime import UTC, datetime
 
+import aiohttp
+import sqlalchemy.exc
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -86,6 +88,62 @@ class RankPollingService:
             self._task = None
         logger.info("Rank polling service stopped")
 
+    async def _retry_with_backoff(
+        self,
+        coro_func,
+        *args,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        **kwargs,
+    ):
+        """Retry a coroutine function with exponential backoff on network errors.
+
+        Args:
+            coro_func: Async function to retry
+            *args: Positional arguments for coro_func
+            max_retries: Maximum number of retry attempts
+            base_delay: Base delay in seconds for exponential backoff
+            **kwargs: Keyword arguments for coro_func
+
+        Returns:
+            Result of coro_func if successful
+
+        Raises:
+            Last exception if all retries fail
+        """
+        last_exception = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                return await coro_func(*args, **kwargs)
+            except (
+                aiohttp.ClientConnectorError,
+                aiohttp.ClientOSError,
+                asyncio.TimeoutError,
+            ) as e:
+                last_exception = e
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "Network error, retrying",
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        error=str(e),
+                        retry_delay=delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "Network error after max retries",
+                        error=str(e),
+                        max_retries=max_retries,
+                    )
+            except RiotApiError:
+                # Don't retry on API errors (rate limits, auth, etc.)
+                raise
+
+        raise last_exception
+
     async def _polling_loop(self) -> None:
         """Main polling loop."""
         while self._running:
@@ -125,13 +183,26 @@ class RankPollingService:
                 try:
                     await self._poll_player_rank(player, session)
                 except Exception as e:
+                    # Capture player info before potential session rollback
+                    player_id = player.id if hasattr(player, 'id') else None
+                    riot_id = player.riot_id if hasattr(player, 'riot_id') else None
+                    
                     logger.error(
                         "Error polling player rank",
-                        player_id=player.id,
-                        riot_id=player.riot_id,
+                        player_id=player_id,
+                        riot_id=riot_id,
                         error=str(e),
                         exc_info=True,
                     )
+                    # Only rollback if there's a database-related error that aborted the transaction
+                    if isinstance(e, sqlalchemy.exc.DBAPIError):
+                        try:
+                            await session.rollback()
+                        except Exception as rollback_error:
+                            logger.warning(
+                                "Failed to rollback transaction",
+                                error=str(rollback_error),
+                            )
 
     async def _poll_player_rank(
         self,
@@ -153,10 +224,27 @@ class RankPollingService:
         # Get league entries using puuid (the endpoint uses by-puuid, not by-summoner)
         try:
             platform = get_platform_for_player(player.region)
-            league_entries = await self._api_client.get_summoner_league(player.puuid, platform)
+            # Retry with exponential backoff on network errors
+            league_entries = await self._retry_with_backoff(
+                self._api_client.get_summoner_league,
+                player.puuid,
+                platform,
+            )
         except RiotApiError as e:
             logger.warning(
                 "Failed to get league entries",
+                player_id=player.id,
+                riot_id=player.riot_id,
+                error=str(e),
+            )
+            return
+        except (
+            aiohttp.ClientConnectorError,
+            aiohttp.ClientOSError,
+            asyncio.TimeoutError,
+        ) as e:
+            logger.warning(
+                "Network error getting league entries after retries",
                 player_id=player.id,
                 riot_id=player.riot_id,
                 error=str(e),

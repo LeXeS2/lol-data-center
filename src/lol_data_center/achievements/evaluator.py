@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import sqlalchemy.exc
+
 from lol_data_center.achievements.conditions import create_condition
 from lol_data_center.achievements.definitions import load_achievements
 from lol_data_center.database.engine import get_async_session
@@ -117,6 +119,15 @@ class AchievementEvaluator:
                         error=str(e),
                         exc_info=True,
                     )
+                    # Only rollback if there's a database-related error that aborted the transaction
+                    if isinstance(e, sqlalchemy.exc.DBAPIError):
+                        try:
+                            await session.rollback()
+                        except Exception as rollback_error:
+                            logger.warning(
+                                "Failed to rollback transaction",
+                                error=str(rollback_error),
+                            )
 
         # Send notifications for triggered achievements
         # Deduplicate consecutive achievements - only send the most prestigious one

@@ -3,6 +3,8 @@
 import asyncio
 from contextlib import suppress
 
+import aiohttp
+import sqlalchemy.exc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Region, RiotApiClient, RiotApiError
@@ -63,6 +65,62 @@ class PollingService:
         await self._api_client.close()
         logger.info("Polling service stopped")
 
+    async def _retry_with_backoff(
+        self,
+        coro_func,
+        *args,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+        **kwargs,
+    ):
+        """Retry a coroutine function with exponential backoff on network errors.
+
+        Args:
+            coro_func: Async function to retry
+            *args: Positional arguments for coro_func
+            max_retries: Maximum number of retry attempts
+            base_delay: Base delay in seconds for exponential backoff
+            **kwargs: Keyword arguments for coro_func
+
+        Returns:
+            Result of coro_func if successful
+
+        Raises:
+            Last exception if all retries fail
+        """
+        last_exception = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                return await coro_func(*args, **kwargs)
+            except (
+                aiohttp.ClientConnectorError,
+                aiohttp.ClientOSError,
+                asyncio.TimeoutError,
+            ) as e:
+                last_exception = e
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "Network error, retrying",
+                        attempt=attempt + 1,
+                        max_retries=max_retries,
+                        error=str(e),
+                        retry_delay=delay,
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "Network error after max retries",
+                        error=str(e),
+                        max_retries=max_retries,
+                    )
+            except RiotApiError:
+                # Don't retry on API errors (rate limits, auth, etc.)
+                raise
+
+        raise last_exception
+
     async def _polling_loop(self) -> None:
         """Main polling loop."""
         while self._running:
@@ -102,13 +160,26 @@ class PollingService:
                 try:
                     await self._poll_player(player, session)
                 except Exception as e:
+                    # Capture player info before potential session rollback
+                    player_id = player.id if hasattr(player, 'id') else None
+                    riot_id = player.riot_id if hasattr(player, 'riot_id') else None
+                    
                     logger.error(
                         "Error polling player",
-                        player_id=player.id,
-                        riot_id=player.riot_id,
+                        player_id=player_id,
+                        riot_id=riot_id,
                         error=str(e),
                         exc_info=True,
                     )
+                    # Only rollback if there's a database-related error that aborted the transaction
+                    if isinstance(e, sqlalchemy.exc.DBAPIError):
+                        try:
+                            await session.rollback()
+                        except Exception as rollback_error:
+                            logger.warning(
+                                "Failed to rollback transaction",
+                                error=str(rollback_error),
+                            )
 
     async def _poll_player(
         self,
@@ -139,7 +210,9 @@ class PollingService:
                 # Convert datetime to epoch seconds for Riot API
                 start_time = int(player.last_polled_at.timestamp())
 
-            match_ids = await self._api_client.get_match_ids(
+            # Retry with exponential backoff on network errors
+            match_ids = await self._retry_with_backoff(
+                self._api_client.get_match_ids,
                 puuid=player.puuid,
                 region=region,
                 count=20,
@@ -148,6 +221,18 @@ class PollingService:
         except RiotApiError as e:
             logger.warning(
                 "Failed to get match IDs",
+                player_id=player.id,
+                riot_id=player.riot_id,
+                error=str(e),
+            )
+            return
+        except (
+            aiohttp.ClientConnectorError,
+            aiohttp.ClientOSError,
+            asyncio.TimeoutError,
+        ) as e:
+            logger.warning(
+                "Network error getting match IDs after retries",
                 player_id=player.id,
                 riot_id=player.riot_id,
                 error=str(e),
@@ -177,8 +262,12 @@ class PollingService:
                 continue
 
             try:
-                # Fetch match details from Riot API
-                match_data = await self._api_client.get_match(match_id, region)
+                # Fetch match details from Riot API with retry logic
+                match_data = await self._retry_with_backoff(
+                    self._api_client.get_match,
+                    match_id,
+                    region,
+                )
 
                 # Filter: only process matches from allowed queues
                 if not is_allowed_queue(match_data.info.queue_id):
@@ -240,6 +329,18 @@ class PollingService:
             except (RiotApiError, ValidationError) as e:
                 logger.error(
                     "Failed to process match",
+                    match_id=match_id,
+                    player_id=player.id,
+                    error=str(e),
+                )
+                continue
+            except (
+                aiohttp.ClientConnectorError,
+                aiohttp.ClientOSError,
+                asyncio.TimeoutError,
+            ) as e:
+                logger.warning(
+                    "Network error fetching match after retries",
                     match_id=match_id,
                     player_id=player.id,
                     error=str(e),

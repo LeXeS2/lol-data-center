@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 
+import sqlalchemy.exc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from lol_data_center.api_client.riot_client import Region, RiotApiClient
@@ -170,6 +171,15 @@ class BackfillService:
                     error=str(e),
                     progress=f"{i}/{total_matches}",
                 )
+                # Only rollback if there's a database-related error that aborted the transaction
+                if isinstance(e, sqlalchemy.exc.DBAPIError):
+                    try:
+                        await self._session.rollback()
+                    except Exception as rollback_error:
+                        logger.warning(
+                            "Failed to rollback transaction",
+                            error=str(rollback_error),
+                        )
                 # Continue with next match instead of failing entire backfill
 
             # Progress update
