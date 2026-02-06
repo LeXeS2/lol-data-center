@@ -188,7 +188,7 @@ achievements:
     stat_field: surprise_win
     condition_type: win_probability
     threshold: 0.2  # Win probability <= 20%
-    message_template: "⚡ **{player_name}** achieved a **Surprise Win**! The model predicted defeat (probability {predicted_win_probability:.2%}), but {player_name} won the game!"
+    message_template: "⚡ **{player_name}** achieved a **Surprise Win**! The model predicted defeat (probability {predicted_win_probability:.2%}), but they won the game!"
 
   - id: surprise_loss
     name: "Surprise Loss"
@@ -196,4 +196,4 @@ achievements:
     stat_field: surprise_loss
     condition_type: win_probability
     threshold: 0.8  # Win probability >= 80%
-    message_template: "⚡ **{player_name}** suffered a **Surprise Loss**. The model was confident in victory (probability {predicted_win_probability:.2%}), but {player_name} lost the game."
+    message_template: "⚡ **{player_name}** suffered a **Surprise Loss**. The model was confident in victory (probability {predicted_win_probability:.2%}), but they lost the game."
