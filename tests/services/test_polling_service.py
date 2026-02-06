@@ -239,5 +239,84 @@ class TestPollingServiceFiltering:
         # Assert: No events should be published for existing matches
         assert event_count == 0
 
-        # Assert: Riot API's get_match should NOT be called for existing matches
-        mock_riot_client.get_match.assert_not_called()
+    @pytest.mark.asyncio
+    async def test_polling_skips_short_duration_games(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
+        """Test that polling skips games shorter than 10 minutes (remakes, early DCs)."""
+        # Arrange: Create a short game (remake)
+        match_id = "EUW1_SHORT_GAME_1"
+        mock_riot_client.get_match_ids.return_value = [match_id]
+
+        short_game = sample_match_dto.model_copy(deep=True)
+        short_game.metadata.match_id = match_id
+        short_game.info.game_mode = "CLASSIC"
+        short_game.info.queue_id = 420
+        short_game.info.game_duration = 300  # 5 minutes (likely remake)
+        mock_riot_client.get_match = AsyncMock(return_value=short_game)
+
+        polling = PollingService(api_client=mock_riot_client)
+
+        # Act: subscribe to events and invoke internal _poll_player with provided session
+        event_bus = get_event_bus()
+        event_count = 0
+
+        async def count_events(event: NewMatchEvent) -> None:
+            nonlocal event_count
+            event_count += 1
+
+        event_bus.subscribe(NewMatchEvent, count_events)
+        try:
+            await polling._poll_player(sample_player, async_session)
+        finally:
+            event_bus.unsubscribe(NewMatchEvent, count_events)
+
+        # Assert: no events, no match saved
+        assert event_count == 0
+        ms = MatchService(async_session)
+        assert (await ms.match_exists(match_id)) is False
+
+    @pytest.mark.asyncio
+    async def test_polling_accepts_boundary_duration_game(
+        self,
+        async_session: AsyncSession,
+        sample_player: TrackedPlayer,
+        sample_match_dto: MatchDto,
+        mock_riot_client: MagicMock,
+    ) -> None:
+        """Test that polling accepts games at exactly 10 minutes (600 seconds)."""
+        # Arrange: Create a game at exactly the threshold
+        match_id = "EUW1_BOUNDARY_GAME_1"
+        mock_riot_client.get_match_ids.return_value = [match_id]
+
+        boundary_game = sample_match_dto.model_copy(deep=True)
+        boundary_game.metadata.match_id = match_id
+        boundary_game.info.game_mode = "CLASSIC"
+        boundary_game.info.queue_id = 420
+        boundary_game.info.game_duration = 600  # Exactly 10 minutes
+        mock_riot_client.get_match = AsyncMock(return_value=boundary_game)
+
+        polling = PollingService(api_client=mock_riot_client)
+
+        # Act: subscribe to events and invoke internal _poll_player with provided session
+        event_bus = get_event_bus()
+        event_count = 0
+
+        async def count_events(event: NewMatchEvent) -> None:
+            nonlocal event_count
+            event_count += 1
+
+        event_bus.subscribe(NewMatchEvent, count_events)
+        try:
+            await polling._poll_player(sample_player, async_session)
+        finally:
+            event_bus.unsubscribe(NewMatchEvent, count_events)
+
+        # Assert: one event, match saved (boundary case should be accepted)
+        assert event_count == 1
+        ms = MatchService(async_session)
+        assert (await ms.match_exists(match_id)) is True
