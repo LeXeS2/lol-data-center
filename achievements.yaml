@@ -7,17 +7,24 @@
 #   - personal_min: Value is a new personal minimum for the player
 #   - population_percentile: Value is in the top/bottom X% of all players
 #   - player_percentile: Value is in the top/bottom X% of the player's own games
+#
+# Duration Normalization:
+#   - By default, stats are normalized to a 30-minute game baseline (normalize_by_duration: true)
+#   - This ensures fair comparisons across games of different lengths
+#   - Example: 15 kills in a 45-minute game = (15 / 2700) * 1800 = 10 kills normalized
+#   - Set normalize_by_duration: false for stats that shouldn't be normalized (e.g., win, deaths in perfect game)
 
 achievements:
   # Absolute threshold achievements
   - id: high_kills
     name: "Killing Spree"
-    description: "Get 10 or more kills in a single game"
+    description: "Get 10 or more kills in a 30-minute equivalent game"
     stat_field: kills
     condition_type: absolute
     operator: ">="
     threshold: 10
-    message_template: "🎯 **{player_name}** achieved **{achievement_name}**! They got {value} kills in their last game!"
+    normalize_by_duration: true  # Normalize to 30-minute baseline
+    message_template: "🎯 **{player_name}** achieved **{achievement_name}**! They got {value:.1f} kills (30-min equivalent) in their last game!"
 
   - id: perfect_game
     name: "Perfect Game"
@@ -26,100 +33,112 @@ achievements:
     condition_type: absolute
     operator: "=="
     threshold: 0
+    normalize_by_duration: false  # Don't normalize - we want exactly 0 deaths
     message_template: "😇 **{player_name}** had a **{achievement_name}**! Zero deaths in their last game!"
 
   - id: assist_king
     name: "Assist King"
-    description: "Get 20 or more assists in a single game"
+    description: "Get 20 or more assists in a 30-minute equivalent game"
     stat_field: assists
     condition_type: absolute
     operator: ">="
     threshold: 20
-    message_template: "🤝 **{player_name}** is the **{achievement_name}**! They got {value} assists!"
+    normalize_by_duration: true
+    message_template: "🤝 **{player_name}** is the **{achievement_name}**! They got {value:.1f} assists (30-min equivalent)!"
 
   - id: cs_master
     name: "CS Master"
-    description: "Get 300 or more CS in a single game"
+    description: "Get 300 or more CS in a 30-minute equivalent game"
     stat_field: total_minions_killed
     condition_type: absolute
     operator: ">="
     threshold: 300
-    message_template: "🌾 **{player_name}** is a **{achievement_name}**! They farmed {value} minions!"
+    normalize_by_duration: true
+    message_template: "🌾 **{player_name}** is a **{achievement_name}**! They farmed {value:.0f} minions (30-min equivalent)!"
 
   - id: high_damage
     name: "Damage Dealer"
-    description: "Deal 50000 or more damage to champions"
+    description: "Deal 50000 or more damage to champions in a 30-minute equivalent game"
     stat_field: total_damage_dealt_to_champions
     condition_type: absolute
     operator: ">="
     threshold: 50000
-    message_template: "💥 **{player_name}** is a **{achievement_name}**! They dealt {value:,} damage to champions!"
+    normalize_by_duration: true
+    message_template: "💥 **{player_name}** is a **{achievement_name}**! They dealt {value:,.0f} damage to champions (30-min equivalent)!"
 
   - id: vision_master
     name: "Vision Master"
-    description: "Place 30 or more wards in a single game"
+    description: "Place 30 or more wards in a 30-minute equivalent game"
     stat_field: wards_placed
     condition_type: absolute
     operator: ">="
     threshold: 30
-    message_template: "👁️ **{player_name}** is a **{achievement_name}**! They placed {value} wards!"
+    normalize_by_duration: true
+    message_template: "👁️ **{player_name}** is a **{achievement_name}**! They placed {value:.0f} wards (30-min equivalent)!"
 
   # Personal record achievements
   - id: new_kill_record
     name: "New Kill Record"
-    description: "Set a new personal kill record"
+    description: "Set a new personal kill record (normalized to 30-minute games)"
     stat_field: kills
     condition_type: personal_max
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value} kills! (Previous: {previous_value})"
+    normalize_by_duration: true
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.1f} kills (30-min equivalent)! (Previous: {previous_value:.1f})"
 
   - id: new_assist_record
     name: "New Assist Record"
-    description: "Set a new personal assist record"
+    description: "Set a new personal assist record (normalized to 30-minute games)"
     stat_field: assists
     condition_type: personal_max
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value} assists! (Previous: {previous_value})"
+    normalize_by_duration: true
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.1f} assists (30-min equivalent)! (Previous: {previous_value:.1f})"
 
   - id: new_cs_record
     name: "New CS Record"
-    description: "Set a new personal CS record"
+    description: "Set a new personal CS record (normalized to 30-minute games)"
     stat_field: total_minions_killed
     condition_type: personal_max
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value} CS! (Previous: {previous_value})"
+    normalize_by_duration: true
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:.0f} CS (30-min equivalent)! (Previous: {previous_value:.0f})"
 
   - id: new_damage_record
     name: "New Damage Record"
-    description: "Set a new personal damage record"
+    description: "Set a new personal damage record (normalized to 30-minute games)"
     stat_field: total_damage_dealt_to_champions
     condition_type: personal_max
-    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:,} damage! (Previous: {previous_value:,})"
+    normalize_by_duration: true
+    message_template: "🏆 **{player_name}** set a **{achievement_name}**! New personal best: {value:,.0f} damage (30-min equivalent)! (Previous: {previous_value:,.0f})"
 
   # Negative records (personal_min - lower is "better" for these stats)
   - id: fewest_deaths
     name: "Survival Expert"
-    description: "New personal minimum deaths (excluding 0)"
+    description: "New personal minimum deaths (excluding 0, normalized to 30-minute games)"
     stat_field: deaths
     condition_type: personal_min
     min_value: 1  # Exclude perfect games (0 deaths)
-    message_template: "🛡️ **{player_name}** achieved **{achievement_name}**! Only {value} deaths! (Previous best: {previous_value})"
+    normalize_by_duration: true
+    message_template: "🛡️ **{player_name}** achieved **{achievement_name}**! Only {value:.1f} deaths (30-min equivalent)! (Previous best: {previous_value:.1f})"
 
   # Population percentile achievements
   - id: top_killer
     name: "Top Killer"
-    description: "Kills in the top 5% of all players"
+    description: "Kills in the top 5% of all players (normalized to 30-minute games)"
     stat_field: kills
     condition_type: population_percentile
     percentile: 95  # Top 5% = 95th percentile
     direction: high  # Higher is better
-    message_template: "🌟 **{player_name}** achieved **{achievement_name}**! {value} kills puts them in the top 5% of all players!"
+    normalize_by_duration: true
+    message_template: "🌟 **{player_name}** achieved **{achievement_name}**! {value:.1f} kills (30-min equivalent) puts them in the top 5% of all players!"
 
   - id: elite_damage
     name: "Elite Damage"
-    description: "Damage dealt in the top 10% of all players"
+    description: "Damage dealt in the top 10% of all players (normalized to 30-minute games)"
     stat_field: total_damage_dealt_to_champions
     condition_type: population_percentile
     percentile: 90  # Top 10% = 90th percentile
     direction: high
-    message_template: "🌟 **{player_name}** dealt **Elite Damage**! {value:,} damage puts them in the top 10% of all players!"
+    normalize_by_duration: true
+    message_template: "🌟 **{player_name}** dealt **Elite Damage**! {value:,.0f} damage (30-min equivalent) puts them in the top 10% of all players!"
 
   # Player percentile achievements (compared to own history)
   - id: personal_best_game
@@ -129,16 +148,18 @@ achievements:
     condition_type: player_percentile
     percentile: 90  # Top 10% of own games
     direction: high
+    normalize_by_duration: false  # KDA is already a ratio, don't normalize
     message_template: "⭐ **{player_name}** had a **{achievement_name}**! KDA of {value:.2f} is in the top 10% of their games!"
 
   - id: personal_worst_deaths
     name: "Rough Game"
-    description: "Deaths in the bottom 10% of your games (most deaths)"
+    description: "Deaths in the bottom 10% of your games (most deaths, normalized to 30-minute games)"
     stat_field: deaths
     condition_type: player_percentile
     percentile: 90  # 90th percentile of deaths = worst 10%
     direction: high  # High deaths is "achieving" this
-    message_template: "💀 **{player_name}** had a **{achievement_name}**... {value} deaths is in their worst 10% of games."
+    normalize_by_duration: true
+    message_template: "💀 **{player_name}** had a **{achievement_name}**... {value:.1f} deaths (30-min equivalent) is in their worst 10% of games."
 
   # Consecutive achievements (win streaks, etc.)
   - id: triple_win_streak
@@ -149,6 +170,7 @@ achievements:
     operator: "=="
     threshold: 1  # win is a boolean, 1 = True
     consecutive_count: 3
+    normalize_by_duration: false  # Boolean value, don't normalize
     message_template: "🔥 **{player_name}** achieved **{achievement_name}**! 3 wins in a row!"
 
   - id: five_win_streak
@@ -159,6 +181,7 @@ achievements:
     operator: "=="
     threshold: 1
     consecutive_count: 5
+    normalize_by_duration: false  # Boolean value, don't normalize
     message_template: "🔥🔥 **{player_name}** achieved **{achievement_name}**! 5 wins in a row! Unstoppable!"
 
   - id: seven_win_streak
@@ -169,6 +192,7 @@ achievements:
     operator: "=="
     threshold: 1
     consecutive_count: 7
+    normalize_by_duration: false  # Boolean value, don't normalize
     message_template: "🔥🔥🔥 **{player_name}** achieved **{achievement_name}**! 7 wins in a row! LEGENDARY!"
 
   - id: perfect_kda_streak
@@ -179,4 +203,5 @@ achievements:
     operator: ">="
     threshold: 5.0
     consecutive_count: 3
+    normalize_by_duration: false  # KDA is already a ratio, don't normalize
     message_template: "⭐ **{player_name}** achieved **{achievement_name}**! KDA >= 5.0 for 3 games straight!"

@@ -161,7 +161,8 @@ class AchievementEvaluator:
             The evaluation result
         """
         condition = create_condition(achievement)
-        return await condition.evaluate(player, event.participant_data, session)
+        game_duration = event.match_data.info.game_duration
+        return await condition.evaluate(player, event.participant_data, session, game_duration)
 
     def _deduplicate_consecutive_achievements(
         self,

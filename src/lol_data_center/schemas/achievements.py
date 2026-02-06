@@ -75,6 +75,17 @@ class AchievementDefinition(BaseModel):
         description="Number of consecutive games that must meet the condition",
     )
 
+    # Duration normalization
+    normalize_by_duration: bool = Field(
+        True,
+        description=(
+            "Whether to normalize stat values by game duration to a 30-minute baseline. "
+            "When True, stats are adjusted as: (stat_value / game_duration_seconds) * 1800. "
+            "Set to False for stats that shouldn't be normalized "
+            "(e.g., 'win', 'deaths' in perfect games)."
+        ),
+    )
+
     # Discord message
     message_template: str = Field(
         ...,
