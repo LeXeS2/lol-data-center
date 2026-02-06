@@ -440,6 +440,74 @@ class ConsecutiveCondition(BaseCondition):
                 return value != threshold
 
 
+class WinProbabilityCondition(BaseCondition):
+    """Condition that checks for surprise outcomes based on win probability prediction."""
+
+    async def evaluate(
+        self,
+        player: TrackedPlayer,
+        participant: ParticipantDto,
+        session: AsyncSession,
+    ) -> AchievementResult:
+        """Evaluate if the match resulted in a surprise outcome.
+
+        A surprise outcome is when:
+        - Player wins but predicted win probability is low (surprise win)
+        - Player loses but predicted win probability is high (surprise loss)
+
+        Args:
+            player: The tracked player
+            participant: The player's match stats
+            session: Database session
+
+        Returns:
+            AchievementResult with triggered status and message
+        """
+        # Get the predicted win probability
+        predicted_prob = participant.predicted_win_probability
+        actual_win = participant.win
+        threshold = self.definition.threshold
+
+        if threshold is None:
+            raise ValueError(f"Win probability condition requires threshold: {self.definition.id}")
+
+        # If no prediction is available, achievement cannot be triggered
+        if predicted_prob is None:
+            logger.debug(
+                "No predicted win probability available",
+                achievement_id=self.definition.id,
+                player_name=player.riot_id,
+            )
+            return AchievementResult(
+                achievement=self.definition,
+                triggered=False,
+                player_name=player.riot_id,
+                current_value=0.0,
+            )
+
+        # Determine if this is a surprise outcome based on the stat_field
+        # stat_field should be either "surprise_win" or "surprise_loss"
+        triggered = False
+        if self.definition.stat_field == "surprise_win":
+            # Surprise win: won but probability was low
+            triggered = actual_win and predicted_prob <= threshold
+        elif self.definition.stat_field == "surprise_loss":
+            # Surprise loss: lost but probability was high
+            triggered = not actual_win and predicted_prob >= threshold
+        else:
+            raise ValueError(
+                f"Win probability condition stat_field must be 'surprise_win' or 'surprise_loss': "
+                f"{self.definition.stat_field}"
+            )
+
+        return AchievementResult(
+            achievement=self.definition,
+            triggered=triggered,
+            player_name=player.riot_id,
+            current_value=predicted_prob,
+        )
+
+
 def create_condition(definition: AchievementDefinition) -> BaseCondition:
     """Factory function to create the appropriate condition.
 
@@ -462,5 +530,7 @@ def create_condition(definition: AchievementDefinition) -> BaseCondition:
             return PlayerPercentileCondition(definition)
         case ConditionType.CONSECUTIVE:
             return ConsecutiveCondition(definition)
+        case ConditionType.WIN_PROBABILITY:
+            return WinProbabilityCondition(definition)
         case _:
             raise ValueError(f"Unknown condition type: {definition.condition_type}")

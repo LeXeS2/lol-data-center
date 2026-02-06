@@ -14,6 +14,7 @@ class ConditionType(str, Enum):
     POPULATION_PERCENTILE = "population_percentile"  # Compared to all players
     PLAYER_PERCENTILE = "player_percentile"  # Compared to own history
     CONSECUTIVE = "consecutive"  # Condition met across N consecutive games
+    WIN_PROBABILITY = "win_probability"  # Based on predicted win probability vs actual result
 
 
 class Operator(str, Enum):
@@ -99,11 +100,13 @@ class AchievementResult(BaseModel):
             return self.message
 
         try:
+            # Use current_value as predicted_win_probability for win_probability achievements
             return self.achievement.message_template.format(
                 player_name=self.player_name,
                 achievement_name=self.achievement.name,
                 value=self.current_value,
                 previous_value=self.previous_value or 0,
+                predicted_win_probability=self.current_value,
             )
         except (KeyError, ValueError):
             return (

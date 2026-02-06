@@ -3,7 +3,7 @@
 import pytest
 from sqlalchemy import select
 
-from lol_data_center.database.models import MatchTimeline, TimelineParticipantFrame
+from lol_data_center.database.models import TimelineParticipantFrame
 from lol_data_center.schemas.riot_api import (
     EventDto,
     FrameDto,

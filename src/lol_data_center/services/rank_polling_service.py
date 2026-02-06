@@ -153,9 +153,7 @@ class RankPollingService:
         # Get league entries using puuid (the endpoint uses by-puuid, not by-summoner)
         try:
             platform = get_platform_for_player(player.region)
-            league_entries = await self._api_client.get_summoner_league(
-                player.puuid, platform
-            )
+            league_entries = await self._api_client.get_summoner_league(player.puuid, platform)
         except RiotApiError as e:
             logger.warning(
                 "Failed to get league entries",

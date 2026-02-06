@@ -840,9 +840,7 @@ class DiscordBot:
                         return
 
                     # Determine queue type
-                    queue_type = (
-                        "RANKED_SOLO_5x5" if queue_lower == "solo" else "RANKED_FLEX_SR"
-                    )
+                    queue_type = "RANKED_SOLO_5x5" if queue_lower == "solo" else "RANKED_FLEX_SR"
 
                     # Generate graph
                     from lol_data_center.services.elo_graph_service import EloGraphService

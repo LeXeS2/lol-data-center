@@ -170,7 +170,9 @@ class MatchService:
                     # Utility
                     "total_heal": participant.total_heal,
                     "total_heals_on_teammates": participant.total_heals_on_teammates,
-                    "total_damage_shielded_on_teammates": participant.total_damage_shielded_on_teammates,
+                    "total_damage_shielded_on_teammates": (
+                        participant.total_damage_shielded_on_teammates
+                    ),
                     "total_time_cc_dealt": participant.total_time_cc_dealt,
                     "time_ccing_others": participant.time_ccing_others,
                     # Game State
@@ -193,6 +195,8 @@ class MatchService:
                     # Spells
                     "summoner1_id": participant.summoner1_id,
                     "summoner2_id": participant.summoner2_id,
+                    # ML Predictions
+                    "predicted_win_probability": participant.predicted_win_probability,
                 }
 
                 # Use ON CONFLICT DO NOTHING for participant

@@ -180,3 +180,20 @@ achievements:
     threshold: 5.0
     consecutive_count: 3
     message_template: "⭐ **{player_name}** achieved **{achievement_name}**! KDA >= 5.0 for 3 games straight!"
+
+  # Win probability-based achievements
+  - id: surprise_win
+    name: "Surprise Win"
+    description: "Won a match despite low predicted win probability"
+    stat_field: surprise_win
+    condition_type: win_probability
+    threshold: 0.2  # Win probability <= 20%
+    message_template: "⚡ **{player_name}** despite inting the game **{player_name}** achieved a **Surprise Win**! You hat a win probability of probability {predicted_win_probability:.2%}"
+
+  - id: surprise_loss
+    name: "Surprise Loss"
+    description: "Lost a match despite high predicted win probability"
+    stat_field: surprise_loss
+    condition_type: win_probability
+    threshold: 0.8  # Win probability >= 80%
+    message_template: "⚡ **{player_name}** despite carrying the game **{player_name}** suffered a **Surprise Loss**. You hat a win probability of {predicted_win_probability:.2%}"
