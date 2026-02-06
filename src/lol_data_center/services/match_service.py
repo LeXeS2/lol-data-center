@@ -193,6 +193,8 @@ class MatchService:
                     # Spells
                     "summoner1_id": participant.summoner1_id,
                     "summoner2_id": participant.summoner2_id,
+                    # ML Predictions
+                    "predicted_win_probability": participant.predicted_win_probability,
                 }
 
                 # Use ON CONFLICT DO NOTHING for participant

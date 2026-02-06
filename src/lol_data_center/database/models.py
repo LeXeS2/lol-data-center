@@ -211,6 +211,9 @@ class MatchParticipant(Base):
     summoner1_id: Mapped[int] = mapped_column(Integer, nullable=False)
     summoner2_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
+    # ML Predictions (added by our system, not from Riot API)
+    predicted_win_probability: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )

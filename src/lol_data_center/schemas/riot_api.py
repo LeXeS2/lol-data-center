@@ -130,6 +130,11 @@ class ParticipantDto(BaseModel):
     summoner1_id: int = Field(..., alias="summoner1Id")
     summoner2_id: int = Field(..., alias="summoner2Id")
 
+    # ML Predictions (not from Riot API, added by our system)
+    predicted_win_probability: float | None = Field(
+        None, description="Win probability predicted by ML model (0.0-1.0)"
+    )
+
     model_config = {"populate_by_name": True, "extra": "ignore"}
 
     @property
