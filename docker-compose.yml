@@ -1,6 +1,22 @@
-version: '3.8'
-
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lol-data-center-migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://lol_user:lol_password@db:5432/lol_data_center
+    volumes:
+      - ./alembic:/app/alembic:ro
+      - ./alembic.ini:/app/alembic.ini:ro
+    command: ["sh", "-c", "pip install alembic && alembic upgrade head"]
+    networks:
+      - lol-network
+    restart: "no"
+
   app:
     build:
       context: .
@@ -8,6 +24,8 @@ services:
     container_name: lol-data-center
     restart: unless-stopped
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
     environment:
