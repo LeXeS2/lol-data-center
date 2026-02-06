@@ -75,6 +75,19 @@ class AchievementEvaluator:
         Args:
             event: The new match event
         """
+        # Defensive check: Skip evaluation for short games (should already be filtered upstream)
+        from lol_data_center.services.filters import is_valid_game_duration
+
+        if not is_valid_game_duration(event.match_data.info.game_duration):
+            logger.warning(
+                "Skipping achievement evaluation for short game "
+                "(should have been filtered earlier)",
+                player_name=event.player_name,
+                match_id=event.match_id,
+                duration_seconds=event.match_data.info.game_duration,
+            )
+            return
+
         logger.info(
             "Evaluating achievements for new match",
             player_name=event.player_name,

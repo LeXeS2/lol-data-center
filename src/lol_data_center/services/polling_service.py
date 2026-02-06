@@ -14,7 +14,7 @@ from lol_data_center.database.engine import get_async_session
 from lol_data_center.database.models import TrackedPlayer
 from lol_data_center.events.event_bus import NewMatchEvent, get_event_bus
 from lol_data_center.logging_config import get_logger
-from lol_data_center.services.filters import is_allowed_queue
+from lol_data_center.services.filters import is_allowed_queue, is_valid_game_duration
 from lol_data_center.services.match_service import MatchService
 from lol_data_center.services.player_service import PlayerService
 
@@ -275,6 +275,16 @@ class PollingService:
                         "Skipping disallowed queue",
                         match_id=match_id,
                         queue_id=match_data.info.queue_id,
+                    )
+                    continue
+
+                # Filter: Skip games that are too short (remakes, early disconnects)
+                if not is_valid_game_duration(match_data.info.game_duration):
+                    logger.info(
+                        "Skipping short game (likely remake or early disconnect)",
+                        match_id=match_id,
+                        duration_seconds=match_data.info.game_duration,
+                        player_id=player.id,
                     )
                     continue
 

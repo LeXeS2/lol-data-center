@@ -421,3 +421,134 @@ async def test_generate_win_probability_plot_success(
     content = buffer.read()
     assert len(content) > 0
     assert content.startswith(b"\x89PNG")  # PNG file signature
+
+
+@pytest.mark.asyncio
+async def test_extract_notable_events(
+    async_session: AsyncSession,
+) -> None:
+    """Test extracting notable events from timeline events."""
+    service = WinProbabilityPlotService(async_session)
+
+    # Create sample events with kills, deaths, objectives, and multi-kills
+    events: list[dict[str, object]] = [
+        # First blood
+        {"type": "CHAMPION_KILL", "timestamp": 120000, "killerId": 1, "victimId": 2},
+        # Another kill
+        {"type": "CHAMPION_KILL", "timestamp": 180000, "killerId": 1, "victimId": 3},
+        # Player dies
+        {"type": "CHAMPION_KILL", "timestamp": 240000, "killerId": 4, "victimId": 1},
+        # Dragon kill
+        {
+            "type": "ELITE_MONSTER_KILL",
+            "timestamp": 360000,
+            "killerId": 1,
+            "monsterType": "DRAGON",
+            "monsterSubType": "FIRE_DRAGON",
+        },
+        # Turret kill (first tower)
+        {
+            "type": "BUILDING_KILL",
+            "timestamp": 420000,
+            "killerId": 1,
+            "buildingType": "TURRET",
+        },
+        # Double kill
+        {"type": "CHAMPION_KILL", "timestamp": 600000, "killerId": 1, "victimId": 5},
+        {"type": "CHAMPION_KILL", "timestamp": 605000, "killerId": 1, "victimId": 6},
+        # Baron kill
+        {
+            "type": "ELITE_MONSTER_KILL",
+            "timestamp": 1200000,
+            "killerId": 1,
+            "monsterType": "BARON_NASHOR",
+        },
+        # Inhibitor kill
+        {
+            "type": "BUILDING_KILL",
+            "timestamp": 1300000,
+            "killerId": 1,
+            "buildingType": "INHIBITOR",
+        },
+        # Herald kill
+        {
+            "type": "ELITE_MONSTER_KILL",
+            "timestamp": 480000,
+            "killerId": 1,
+            "monsterType": "RIFTHERALD",
+        },
+    ]
+
+    # Extract notable events for participant 1
+    notable_events = service._extract_notable_events(events, participant_id=1)
+
+    # Verify kills
+    assert len(notable_events["kills"]) == 4  # 4 kills total
+    assert notable_events["kills"][0][1] == "Kill"
+
+    # Verify deaths
+    assert len(notable_events["deaths"]) == 1  # 1 death
+    assert notable_events["deaths"][0][1] == "Death"
+
+    # Verify objectives
+    assert len(notable_events["objectives"]) >= 4  # Dragon, Turret, Baron, Inhibitor, Herald
+    # Check for specific objectives
+    objective_names = [event[1] for event in notable_events["objectives"]]
+    assert "Baron" in objective_names
+    assert "Inhibitor" in objective_names
+    assert "Herald" in objective_names
+    # Dragon should have type
+    assert any("Dragon" in name for name in objective_names)
+
+    # Verify multi-kills
+    assert len(notable_events["multikills"]) == 1  # 1 double kill
+    assert notable_events["multikills"][0][1] == "Double Kill"
+
+    # Verify milestones
+    assert len(notable_events["milestones"]) == 2  # First blood and first tower
+    milestone_names = [event[1] for event in notable_events["milestones"]]
+    assert "First Blood" in milestone_names
+    assert "First Tower" in milestone_names
+
+
+@pytest.mark.asyncio
+async def test_extract_notable_events_triple_kill(
+    async_session: AsyncSession,
+) -> None:
+    """Test multi-kill detection with triple kill."""
+    service = WinProbabilityPlotService(async_session)
+
+    # Create events for a triple kill
+    events: list[dict[str, object]] = [
+        {"type": "CHAMPION_KILL", "timestamp": 600000, "killerId": 1, "victimId": 2},
+        {"type": "CHAMPION_KILL", "timestamp": 605000, "killerId": 1, "victimId": 3},
+        {"type": "CHAMPION_KILL", "timestamp": 608000, "killerId": 1, "victimId": 4},
+    ]
+
+    notable_events = service._extract_notable_events(events, participant_id=1)
+
+    # Should have 2 multi-kills: double kill and triple kill
+    assert len(notable_events["multikills"]) == 2
+    # Verify the multi-kill types
+    multikill_types = [event[1] for event in notable_events["multikills"]]
+    assert "Double Kill" in multikill_types
+    assert "Triple Kill" in multikill_types
+
+
+@pytest.mark.asyncio
+async def test_extract_notable_events_no_events(
+    async_session: AsyncSession,
+) -> None:
+    """Test extracting notable events when there are no events."""
+    service = WinProbabilityPlotService(async_session)
+
+    events: list[dict[str, object]] = []
+
+    notable_events = service._extract_notable_events(events, participant_id=1)
+
+    # All event categories should be empty
+    assert len(notable_events["kills"]) == 0
+    assert len(notable_events["deaths"]) == 0
+    assert len(notable_events["objectives"]) == 0
+    assert len(notable_events["multikills"]) == 0
+    assert len(notable_events["milestones"]) == 0

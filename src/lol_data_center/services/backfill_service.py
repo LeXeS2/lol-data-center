@@ -14,6 +14,12 @@ from lol_data_center.services.match_service import MatchService
 logger = get_logger(__name__)
 
 
+# Rate limit: 100 requests per 120 seconds = ~0.83 requests/sec
+# Average time per match (with rate limiting): ~1.2 seconds
+# This includes API calls for match details and timeline
+SECONDS_PER_MATCH_ESTIMATE = 1.2
+
+
 class BackfillService:
     """Service for backfilling historical match data without triggering events."""
 
@@ -37,6 +43,54 @@ class BackfillService:
         if self._api_client is None:
             self._api_client = RiotApiClient()
         return self._api_client
+
+    async def get_match_count_and_estimate(
+        self,
+        player: TrackedPlayer,
+        region: Region = Region.EUROPE,
+    ) -> tuple[int, int]:
+        """Pre-fetch match IDs and estimate collection time.
+
+        This method fetches all available match IDs for a player and estimates
+        how long the full backfill process will take, based on rate limits.
+
+        Args:
+            player: The tracked player to estimate for
+            region: Regional routing value
+
+        Returns:
+            Tuple of (total_matches, estimated_seconds)
+        """
+        client = await self._get_client()
+
+        logger.info(
+            "Pre-fetching match IDs for estimation",
+            player_id=player.id,
+            riot_id=player.riot_id,
+            puuid=player.puuid,
+        )
+
+        # Fetch all match IDs
+        match_ids = await client.fetch_all_match_ids(
+            puuid=player.puuid,
+            region=region,
+        )
+
+        total_matches = len(match_ids)
+
+        # Estimate time based on rate limits and processing time
+        # Each match requires 1-2 API calls (match details + timeline)
+        estimated_seconds = int(total_matches * SECONDS_PER_MATCH_ESTIMATE)
+
+        logger.info(
+            "Match count and estimate calculated",
+            player_id=player.id,
+            total_matches=total_matches,
+            estimated_seconds=estimated_seconds,
+            estimated_minutes=estimated_seconds / 60,
+        )
+
+        return total_matches, estimated_seconds
 
     async def backfill_player_history(
         self,
@@ -154,7 +208,7 @@ class BackfillService:
 
                 # Save match to database with timeline (only saves if doesn't exist)
                 await self._match_service.save_match_with_timeline(
-                    match_data, self._api_client, region, filter_events=True
+                    match_data, client, region, filter_events=True
                 )
                 saved_count += 1
 
