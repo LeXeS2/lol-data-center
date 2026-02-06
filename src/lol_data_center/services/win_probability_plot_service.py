@@ -4,6 +4,7 @@ from io import BytesIO
 
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -67,10 +68,10 @@ class WinProbabilityPlotService:
 
     def _extract_stats_from_events(
         self,
-        events: list[dict],
+        events: list[dict[str, object]],
         participant_id: int,
         timestamp_ms: int,
-    ) -> dict[str, int]:
+    ) -> dict[str, int | float | bool]:
         """Extract statistics from timeline events up to a given timestamp.
 
         Args:
@@ -81,7 +82,7 @@ class WinProbabilityPlotService:
         Returns:
             Dictionary of calculated statistics
         """
-        stats = {
+        stats: dict[str, int | float | bool] = {
             "kills": 0,
             "deaths": 0,
             "assists": 0,
@@ -107,7 +108,10 @@ class WinProbabilityPlotService:
         first_tower_occurred = False
 
         for event in events:
-            event_timestamp = event.get("timestamp", 0)
+            event_timestamp_obj = event.get("timestamp", 0)
+            if not isinstance(event_timestamp_obj, int):
+                continue
+            event_timestamp: int = event_timestamp_obj
             if event_timestamp > timestamp_ms:
                 break
 
@@ -120,7 +124,7 @@ class WinProbabilityPlotService:
                 assisting_ids = event.get("assistingParticipantIds", [])
 
                 if killer_id == participant_id:
-                    stats["kills"] += 1
+                    stats["kills"] = int(stats["kills"]) + 1
                     recent_kills.append(event_timestamp)
 
                     # Check for first blood
@@ -136,33 +140,33 @@ class WinProbabilityPlotService:
                     # Count multi-kills
                     kill_count = len(recent_kills)
                     if kill_count >= 5:
-                        stats["penta_kills"] += 1
+                        stats["penta_kills"] = int(stats["penta_kills"]) + 1
                     elif kill_count >= 4:
-                        stats["quadra_kills"] += 1
+                        stats["quadra_kills"] = int(stats["quadra_kills"]) + 1
                     elif kill_count >= 3:
-                        stats["triple_kills"] += 1
+                        stats["triple_kills"] = int(stats["triple_kills"]) + 1
                     elif kill_count >= 2:
-                        stats["double_kills"] += 1
+                        stats["double_kills"] = int(stats["double_kills"]) + 1
 
                 if victim_id == participant_id:
-                    stats["deaths"] += 1
+                    stats["deaths"] = int(stats["deaths"]) + 1
                     # Clear recent kills on death
                     recent_kills.clear()
 
-                if participant_id in assisting_ids:
-                    stats["assists"] += 1
+                if isinstance(assisting_ids, list) and participant_id in assisting_ids:
+                    stats["assists"] = int(stats["assists"]) + 1
 
             # Ward placement
             elif event_type == "WARD_PLACED":
                 creator_id = event.get("creatorId")
                 if creator_id == participant_id:
-                    stats["wards_placed"] += 1
+                    stats["wards_placed"] = int(stats["wards_placed"]) + 1
 
             # Ward kills
             elif event_type == "WARD_KILL":
                 killer_id = event.get("killerId")
                 if killer_id == participant_id:
-                    stats["wards_killed"] += 1
+                    stats["wards_killed"] = int(stats["wards_killed"]) + 1
 
             # Building kills (turrets and inhibitors)
             elif event_type == "BUILDING_KILL":
@@ -171,13 +175,13 @@ class WinProbabilityPlotService:
 
                 if killer_id == participant_id:
                     if building_type == "TURRET":
-                        stats["turret_takedowns"] += 1
+                        stats["turret_takedowns"] = int(stats["turret_takedowns"]) + 1
                         # Check for first tower
                         if not first_tower_occurred:
                             stats["first_tower_kill"] = True
                             first_tower_occurred = True
                     elif building_type == "INHIBITOR":
-                        stats["inhibitor_takedowns"] += 1
+                        stats["inhibitor_takedowns"] = int(stats["inhibitor_takedowns"]) + 1
 
             # Elite monster kills (Baron, Dragon)
             elif event_type == "ELITE_MONSTER_KILL":
@@ -186,15 +190,18 @@ class WinProbabilityPlotService:
 
                 if killer_id == participant_id:
                     if monster_type == "BARON_NASHOR":
-                        stats["baron_kills"] += 1
+                        stats["baron_kills"] = int(stats["baron_kills"]) + 1
                     elif monster_type == "DRAGON":
-                        stats["dragon_kills"] += 1
+                        stats["dragon_kills"] = int(stats["dragon_kills"]) + 1
 
         # Calculate KDA
-        if stats["deaths"] > 0:
-            stats["kda"] = (stats["kills"] + stats["assists"]) / stats["deaths"]
+        kills = int(stats["kills"])
+        deaths = int(stats["deaths"])
+        assists = int(stats["assists"])
+        if deaths > 0:
+            stats["kda"] = (kills + assists) / deaths
         else:
-            stats["kda"] = stats["kills"] + stats["assists"]
+            stats["kda"] = kills + assists
 
         return stats
 
@@ -202,7 +209,7 @@ class WinProbabilityPlotService:
         self,
         frame: TimelineParticipantFrame,
         game_duration_ms: int,
-        event_stats: dict[str, int | bool],
+        event_stats: dict[str, int | float | bool],
     ) -> dict[str, float]:
         """Extract features from a timeline frame for win probability prediction.
 
@@ -280,6 +287,199 @@ class WinProbabilityPlotService:
 
         return features
 
+    def _extract_notable_events(
+        self,
+        events: list[dict[str, object]],
+        participant_id: int,
+    ) -> dict[str, list[tuple[float, str]]]:
+        """Extract notable events for visualization on the plot.
+
+        Args:
+            events: List of timeline events
+            participant_id: Participant ID to track (1-10)
+
+        Returns:
+            Dictionary mapping event categories to list of (timestamp_minutes, description) tuples
+        """
+        notable_events: dict[str, list[tuple[float, str]]] = {
+            "kills": [],  # Champion kills by this player
+            "deaths": [],  # Player's deaths
+            "objectives": [],  # Major objectives (Baron, Dragon, Herald, Turrets, Inhibitors)
+            "multikills": [],  # Multi-kills (Double, Triple, Quadra, Penta)
+            "milestones": [],  # First Blood, First Tower
+        }
+
+        # Track kill timestamps for multi-kill detection
+        recent_kills: list[int] = []
+        multi_kill_window = 10000  # 10 seconds
+
+        first_blood_occurred = False
+        first_tower_occurred = False
+
+        for event in events:
+            event_timestamp_obj = event.get("timestamp", 0)
+            if not isinstance(event_timestamp_obj, int):
+                continue
+            event_timestamp: int = event_timestamp_obj
+            timestamp_minutes = float(event_timestamp) / 60000.0  # Convert to minutes
+            event_type = event.get("type")
+
+            # Champion kills
+            if event_type == "CHAMPION_KILL":
+                killer_id = event.get("killerId")
+                victim_id = event.get("victimId")
+
+                # Player got a kill
+                if killer_id == participant_id:
+                    notable_events["kills"].append((timestamp_minutes, "Kill"))
+                    recent_kills.append(event_timestamp)
+
+                    # Check for first blood
+                    if not first_blood_occurred:
+                        notable_events["milestones"].append((timestamp_minutes, "First Blood"))
+                        first_blood_occurred = True
+
+                    # Clean old kills outside multi-kill window
+                    recent_kills = [
+                        t for t in recent_kills if event_timestamp - t <= multi_kill_window
+                    ]
+
+                    # Check for multi-kills
+                    kill_count = len(recent_kills)
+                    if kill_count >= 5:
+                        notable_events["multikills"].append((timestamp_minutes, "Penta Kill"))
+                    elif kill_count == 4:
+                        notable_events["multikills"].append((timestamp_minutes, "Quadra Kill"))
+                    elif kill_count == 3:
+                        notable_events["multikills"].append((timestamp_minutes, "Triple Kill"))
+                    elif kill_count == 2:
+                        notable_events["multikills"].append((timestamp_minutes, "Double Kill"))
+
+                # Player died
+                if victim_id == participant_id:
+                    notable_events["deaths"].append((timestamp_minutes, "Death"))
+                    # Clear recent kills on death
+                    recent_kills.clear()
+
+            # Building kills (turrets and inhibitors)
+            elif event_type == "BUILDING_KILL":
+                killer_id = event.get("killerId")
+                building_type = event.get("buildingType")
+
+                if killer_id == participant_id:
+                    if building_type == "TURRET":
+                        notable_events["objectives"].append((timestamp_minutes, "Turret"))
+                        # Check for first tower
+                        if not first_tower_occurred:
+                            notable_events["milestones"].append((timestamp_minutes, "First Tower"))
+                            first_tower_occurred = True
+                    elif building_type == "INHIBITOR":
+                        notable_events["objectives"].append((timestamp_minutes, "Inhibitor"))
+
+            # Elite monster kills (Baron, Dragon, Herald)
+            elif event_type == "ELITE_MONSTER_KILL":
+                killer_id = event.get("killerId")
+                monster_type = event.get("monsterType")
+                monster_sub_type = event.get("monsterSubType", "")
+
+                if killer_id == participant_id:
+                    if monster_type == "BARON_NASHOR":
+                        notable_events["objectives"].append((timestamp_minutes, "Baron"))
+                    elif monster_type == "DRAGON":
+                        # Get dragon type if available
+                        dragon_type = ""
+                        if monster_sub_type and isinstance(monster_sub_type, str):
+                            dragon_type = f" ({monster_sub_type.replace('_DRAGON', '').title()})"
+                        notable_events["objectives"].append(
+                            (timestamp_minutes, f"Dragon{dragon_type}")
+                        )
+                    elif monster_type == "RIFTHERALD":
+                        notable_events["objectives"].append((timestamp_minutes, "Herald"))
+
+        return notable_events
+
+    def _add_event_markers_to_plot(
+        self,
+        ax: Axes,
+        notable_events: dict[str, list[tuple[float, str]]],
+        timestamps_minutes: list[float],
+        win_probabilities: list[float],
+    ) -> None:
+        """Add visual markers for notable events to the plot.
+
+        Args:
+            ax: Matplotlib axes object
+            notable_events: Dictionary of event categories with (timestamp, description) tuples
+            timestamps_minutes: List of frame timestamps in minutes
+            win_probabilities: List of win probabilities corresponding to timestamps
+        """
+
+        # Helper function to interpolate win probability at event time
+        def get_win_prob_at_time(event_time: float) -> float:
+            """Interpolate win probability at a specific time."""
+            if not timestamps_minutes or not win_probabilities:
+                return 50.0
+
+            # Find closest frame timestamps
+            for i, t in enumerate(timestamps_minutes):
+                if t >= event_time:
+                    if i == 0:
+                        return win_probabilities[0]
+                    # Linear interpolation between frames
+                    t_prev = timestamps_minutes[i - 1]
+                    prob_prev = win_probabilities[i - 1]
+                    prob_curr = win_probabilities[i]
+                    ratio = (event_time - t_prev) / (t - t_prev) if t != t_prev else 0
+                    return prob_prev + ratio * (prob_curr - prob_prev)
+
+            # Event is after last frame
+            return win_probabilities[-1] if win_probabilities else 50.0
+
+        # Event type configurations: (marker, color, size, label)
+        event_configs = {
+            "kills": ("^", "#2ecc71", 80, "Kills"),  # Green up triangle
+            "deaths": ("v", "#e74c3c", 80, "Deaths"),  # Red down triangle
+            "objectives": ("*", "#f39c12", 120, "Objectives"),  # Orange star
+            "multikills": ("P", "#9b59b6", 100, "Multi-kills"),  # Purple plus
+            "milestones": ("D", "#3498db", 100, "Milestones"),  # Blue diamond
+        }
+
+        # Plot markers for each event category
+        handles = []
+        for event_type, (marker, color, size, label) in event_configs.items():
+            events = notable_events.get(event_type, [])
+            if not events:
+                continue
+
+            # Extract times and get corresponding probabilities
+            event_times = [e[0] for e in events]
+            event_probs = [get_win_prob_at_time(t) for t in event_times]
+
+            # Plot markers
+            scatter = ax.scatter(
+                event_times,
+                event_probs,
+                marker=marker,
+                s=size,
+                color=color,
+                edgecolors="black",
+                linewidths=0.5,
+                alpha=0.8,
+                zorder=5,  # Draw on top of the line
+                label=label,
+            )
+            handles.append(scatter)
+
+        # Add legend if there are any events
+        if handles:
+            ax.legend(
+                handles=handles,
+                loc="upper left",
+                framealpha=0.9,
+                fontsize=9,
+                ncol=2,
+            )
+
     async def generate_win_probability_plot(
         self,
         match_id: str,
@@ -323,7 +523,11 @@ class WinProbabilityPlotService:
             raise ValueError(f"No timeline found for match {match_id}")
 
         # Extract events list from JSON
-        events = timeline.events.get("events", [])
+        events_data = timeline.events.get("events", [])
+        # Type assertion: events should be a list of dictionaries
+        if not isinstance(events_data, list):
+            raise ValueError(f"Invalid timeline events format for match {match_id}")
+        events: list[dict[str, object]] = events_data
 
         # Get participant_id for this player
         participant_id = frames[0].participant_id if frames else None
@@ -365,6 +569,9 @@ class WinProbabilityPlotService:
                 # Use 50% as fallback
                 win_probabilities.append(50.0)
 
+        # Extract notable events for visualization
+        notable_events = self._extract_notable_events(events, participant_id)
+
         # Create the plot
         fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -377,12 +584,19 @@ class WinProbabilityPlotService:
             linewidth=2,
             markersize=4,
             color="#1f77b4",
+            label="Win Probability",
+            zorder=3,
         )
+
+        # Add event markers to the plot
+        self._add_event_markers_to_plot(ax, notable_events, timestamps_minutes, win_probabilities)
 
         # Formatting
         ax.set_xlabel("Game Time (minutes)", fontsize=12)
         ax.set_ylabel("Win Probability (%)", fontsize=12)
-        ax.set_title("Win Probability Over Time", fontsize=14, fontweight="bold")
+        ax.set_title(
+            "Win Probability Over Time with Notable Events", fontsize=14, fontweight="bold"
+        )
         ax.grid(True, alpha=0.3)
 
         # Set y-axis limits
