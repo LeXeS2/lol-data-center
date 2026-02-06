@@ -57,7 +57,7 @@ class TrackedPlayer(Base):
         "MatchParticipant", back_populates="player"
     )
     records: Mapped[Optional["PlayerRecord"]] = relationship(
-        "PlayerRecord", back_populates="player", uselist=False
+        "PlayerRecord", back_populates="player", uselist=False, cascade="all, delete-orphan"
     )
 
     @property
