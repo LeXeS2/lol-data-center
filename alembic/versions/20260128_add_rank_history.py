@@ -1,7 +1,7 @@
 """Add rank history table
 
 Revision ID: 20260128_rank_history
-Revises: 20260125_timezone
+Revises: 20260125_tz_aware
 Create Date: 2026-01-28
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = '20260128_rank_history'
-down_revision: Union[str, None] = '20260125_timezone'
+down_revision: Union[str, None] = '20260125_tz_aware'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

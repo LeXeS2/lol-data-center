@@ -1,7 +1,7 @@
 """Remove short duration games (remakes and early disconnects).
 
 Revision ID: 20260206_remove_short_games
-Revises: 20260206_win_prob
+Revises: 20260128_rank_history
 Create Date: 2026-02-06 13:35:00.000000
 
 This migration deletes matches with duration < 600 seconds (10 minutes).
@@ -23,7 +23,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "20260206_remove_short_games"
-down_revision: str | None = "20260206_win_prob"
+down_revision: str | None = "20260128_rank_history"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
